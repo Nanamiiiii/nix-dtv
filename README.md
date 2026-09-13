@@ -46,19 +46,15 @@ px4_drv に含まれる udev rule は upstream fork と同じ `root:video`, mode
           # px4_drv が配布する firmware のライセンスに必要です。
           nixpkgs.config.allowUnfree = true;
 
+          security.polkit.enable = true;
+          services.pcscd.enable = true;
+
           services.mirakurun = {
-            tuners = [
+            tunerSettings = [
               {
                 name = "PX4-S1";
                 types = [ "BS" "CS" ];
                 command = "recisdb tune --device /dev/px4video0 --channel <channel> -";
-              }
-            ];
-            channels = [
-              {
-                name = "NHK 総合";
-                type = "GR";
-                channel = "T27";
               }
             ];
           };
@@ -69,7 +65,7 @@ px4_drv に含まれる udev rule は upstream fork と同じ `root:video`, mode
 }
 ```
 
-Mirakurun service の `PATH` には既定で `recisdb` が追加されるため、`tuners` の `command` では絶対 path を書く必要はありません。別の tuner command を使う場合は `services.mirakurun.tunerCommandPackages` にその package を追加または指定します。
+Mirakurun service の `PATH` には既定で `recisdb` が追加されるため、`tunerSettings` の `command` では絶対 path を書く必要はありません。別の tuner command を使う場合は `services.mirakurun.tunerCommandPackages` にその packageを追加または指定します。カードリーダーを利用する場合は `security.polkit.enable = true` と `services.pcscd.enable = true` にします。Mirakurun用のpolkitルールはnixpkgs標準モジュールの `allowSmartCardAccess` により既定で導入されます。
 
 ISDBScanner は flake から直接実行できます。
 
@@ -78,13 +74,13 @@ nix run github:Nanamiiiii/nix-dtv#isdb-scanner -- --list-tuners
 nix run github:Nanamiiiii/nix-dtv#isdb-scanner -- ./scanned
 ```
 
-出力される Mirakurun の `channels.yml` は recisdb 形式（地上波は `T27`、衛星は `BS01_0` / `CS2` など）です。`tuners.yml` の `recisdb tune ...` と組み合わせて利用してください。
+出力される Mirakurun の `channels.yml` は recisdb 形式（地上波は `T27`、衛星は `BS01_0` / `CS2` など）です。`tunerSettings` の `recisdb tune ...` と組み合わせて利用してください。`channelSettings` の既定値は `null` なので、生成したチャンネルリストをランタイム設定として配置できます。
 
 `services.dtv.recordingDir` から EDCB の `Common.ini`、`dtv` group と setgid directory、KonomiTV の `video.recorded_folders` と read-only bind mount を導出します。既存環境で名前が競合する場合は `services.dtv.recordingGroup` で変更できます。
 
 ## 権限と状態
 
-- Mirakurun は `mirakurun:mirakurun` で動き、supplementary group `video` だけを追加します。生成済み YAML は Nix store、DB と logo は `/var/lib/mirakurun` に置きます。
+- Mirakurunはnixpkgs標準モジュールで `mirakurun:video` として動かし、このリポジトリでは最新版パッケージの直接起動とrecisdbのservice `PATH`だけを追加します。DBとlogoは `/var/lib/mirakurun`、ランタイム生成されるtuner/channel設定は `/etc/mirakurun` に置きます。
 - EDCB は `edcb:edcb` で動き、`dtv` group だけを追加します。実行ファイルと `.so` の実体は Nix store、設定と状態は `/var/lib/edcb`、録画だけは指定した recording directory に書き込みます。
 - `EpgTimerSrv.ini`、`Common.ini`、`EpgDataCap_Bon.ini`、`RecName_Macro.so.ini`、`BonDriver_LinuxMirakc.so.ini` は UTF-8（BOM なし）で Nix から生成します。追加設定はそれぞれ `services.edcb.settings`、`commonSettings`、`epgDataCapBonSettings`、`recNameMacroSettings`、`bonDriver.settings` で指定します。
 - EDCB の既定値は、loopback限定のTCP接続、KonomiTV向けの `CompatFlags=128`、`TimeSync=0`、保守的なBonDriver同時利用数1、録画先、localhost上のMirakurun接続だけです。

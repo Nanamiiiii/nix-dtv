@@ -16,10 +16,7 @@ pkgs.testers.runNixOSTest {
       edcb.enable = true;
     };
 
-    services.mirakurun = {
-      tuners = [ ];
-      channels = [ ];
-    };
+    services.mirakurun.tunerSettings = [ ];
 
     environment.systemPackages = [ pkgs.curl ];
   };

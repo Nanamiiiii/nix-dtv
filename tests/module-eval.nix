@@ -20,6 +20,8 @@ let
           edcb.enable = true;
           konomitv.enable = true;
         };
+        security.polkit.enable = true;
+        services.pcscd.enable = true;
         services.mirakurun.serverSettings.logLevel = 1;
         services.edcb.settings.SET.SaveLog = 1;
         services.edcb.epgDataCapBonSettings.SET.TsBuffMaxCount = 5000;
@@ -34,8 +36,14 @@ let
 in
 assert cfg.services.edcb.recordingDir == "/mnt/tv/recordings";
 assert cfg.services.konomitv.recordingDir == "/mnt/tv/recordings";
-assert cfg.users.users.mirakurun.extraGroups == [ "video" ];
+assert cfg.users.users.mirakurun.group == "video";
+assert cfg.services.mirakurun.allowSmartCardAccess;
+assert cfg.services.pcscd.enable;
+assert cfg.security.polkit.enable;
+assert cfg.services.mirakurun.tunerSettings == null;
+assert cfg.services.mirakurun.channelSettings == null;
 assert cfg.services.mirakurun.serverSettings.port == 40772;
+assert evaluated.pkgs.mirakurun == cfg.services.mirakurun.package;
 assert builtins.length cfg.services.mirakurun.tunerCommandPackages == 1;
 assert builtins.elem (builtins.head cfg.services.mirakurun.tunerCommandPackages)
   cfg.systemd.services.mirakurun.path;

@@ -90,10 +90,11 @@ ISDBScanner は上流sourceをPythonで実行し、次をNix closureに含めて
 
 ### Mirakurun
 
-- nixpkgs標準の同名moduleはdisableし、このリポジトリのmoduleだけを使う。
-- native packageを `mirakurun:mirakurun` で実行し、supplementary groupはdefaultで`video`。
-- `server.yml`, `tuners.yml`, `channels.yml` は `pkgs.formats.yaml` で生成し、Nix storeをsource of truthにする。
-- mutable DB/logoは `/var/lib/mirakurun`、socketはdefaultで `/run/mirakurun/mirakurun.sock`。
+- nixpkgs標準の同名moduleを使い、このリポジトリのmoduleは最新版packageの直接起動とtuner commandのservice `PATH`だけを追加する。
+- nixpkgs標準packageは3.9.0-rc.4のため使わず、このリポジトリで固定するMirakurun 4.1.3を `services.mirakurun.package` のdefaultにする。4.xは従来の `mirakurun start` CLIを削除したため、systemdはpackageの直接起動wrapperを呼ぶ。
+- native serviceは `mirakurun:video` で実行する。nixpkgs標準moduleの `allowSmartCardAccess` とpolkit ruleを利用し、カードリーダー利用時は `security.polkit.enable = true` と `services.pcscd.enable = true` を指定する。
+- `server.yml` はNixで生成する。`tunerSettings` と `channelSettings` はdefaultの `null` なら `/etc/mirakurun` にランタイム生成でき、チャンネルスキャン結果は宣言的管理しない。
+- mutable DB/logoは `/var/lib/mirakurun`、socketはdefaultで `/var/run/mirakurun/mirakurun.sock`。
 - `services.mirakurun.tunerCommandPackages` のdefaultはrecisdb。systemd serviceの`PATH`へ追加されるため、`tuners.yml`では `recisdb tune ...` と書ける。
 - recisdb以外のcommandを使う場合は `tunerCommandPackages` へpackageを明示する。
 - recpt1はpackage化していない。
