@@ -48,19 +48,20 @@ assert builtins.length cfg.services.mirakurun.tunerCommandPackages == 1;
 assert builtins.elem (builtins.head cfg.services.mirakurun.tunerCommandPackages)
   cfg.systemd.services.mirakurun.path;
 assert builtins.elem "dtv" cfg.users.users.edcb.extraGroups;
-assert cfg.services.edcb.settings.SET.EnableTCPSrv == 1;
-assert cfg.services.edcb.settings.SET.TCPAccessControlList == "+127.0.0.1,+::1,+::ffff:127.0.0.1";
-assert cfg.services.edcb.settings.SET.TCPPort == 4510;
-assert cfg.services.edcb.settings.SET.CompatFlags == 128;
-assert cfg.services.edcb.settings.SET.TimeSync == 0;
-assert !(cfg.services.edcb.settings.SET ? EnableHttpSrv);
+assert cfg.services.edcb.settings.SET.SaveLog == 1;
+assert !(cfg.services.edcb.settings.SET ? EnableTCPSrv);
 assert !(cfg.services.edcb.settings ? EPG_CAP);
-assert cfg.services.edcb.settings."BonDriver_LinuxMirakc.so".Count == 1;
-assert !(cfg.services.edcb.commonSettings.SET ? BSBasicOnly);
+assert cfg.services.edcb.commonSettings == null;
+assert
+  !(nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/Common.ini ") cfg.systemd.tmpfiles.rules);
+assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/Bitrate.ini ")
+  cfg.systemd.tmpfiles.rules;
+assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/BonCtrl.ini ")
+  cfg.systemd.tmpfiles.rules;
 assert cfg.services.edcb.epgDataCapBonSettings.SET.TsBuffMaxCount == 5000;
 assert cfg.services.edcb.recNameMacroSettings.SET.Macro == "$ZtoH(Title)$.ts";
-assert cfg.services.edcb.bonDriver.settings.GLOBAL.SERVER_HOST == "127.0.0.1";
-assert cfg.services.edcb.bonDriver.settings.GLOBAL.SERVER_PORT == 40772;
+assert cfg.services.edcb.bonDriver.settings.GLOBAL.PRIORITY == 5;
+assert !(cfg.services.edcb.bonDriver.settings.GLOBAL ? SERVER_HOST);
 assert !(cfg.services.edcb.bonDriver.settings.GLOBAL ? DECODE_B25);
 assert cfg.services.konomitv.settings.general.always_receive_tv_from_mirakurun;
 assert builtins.elem "/mnt/tv/recordings:/host-rootfs/mnt/tv/recordings:ro" konomitvVolumes;

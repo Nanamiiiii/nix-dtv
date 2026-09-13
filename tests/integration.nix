@@ -17,6 +17,7 @@ pkgs.testers.runNixOSTest {
     };
 
     services.mirakurun.tunerSettings = [ ];
+    services.edcb.settings = { };
 
     environment.systemPackages = [ pkgs.curl ];
   };

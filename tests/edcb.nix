@@ -26,6 +26,8 @@ pkgs.testers.runNixOSTest {
       package = fakeEdcb;
       bonDriver.package = fakeBonDriver;
       recordingDir = "/mnt/tv/recordings";
+      settings.SET.SaveLog = 1;
+      commonSettings = { };
       epgDataCapBonSettings.SET = {
         TsBuffMaxCount = 5000;
         WriteBuffMaxCount = -1;
@@ -37,6 +39,8 @@ pkgs.testers.runNixOSTest {
     machine.wait_for_unit("edcb.service")
     machine.succeed("test $(stat -c %U /var/lib/edcb) = edcb")
     machine.succeed("test $(stat -c %a /mnt/tv/recordings) = 2770")
+    machine.succeed("test -f /var/lib/edcb/Bitrate.ini")
+    machine.succeed("test -f /var/lib/edcb/BonCtrl.ini")
     machine.succeed("test -L /var/lib/edcb/lib/BonDriver_LinuxMirakc.so")
     machine.succeed("grep -F 'RecFolderPath0=/mnt/tv/recordings' /var/lib/edcb/Common.ini")
     machine.succeed("grep -F 'EnableTCPSrv=1' /var/lib/edcb/EpgTimerSrv.ini")
@@ -46,8 +50,7 @@ pkgs.testers.runNixOSTest {
     machine.succeed("grep -F 'Count=1' /var/lib/edcb/EpgTimerSrv.ini")
     machine.fail("grep -F 'EnableHttpSrv=' /var/lib/edcb/EpgTimerSrv.ini")
     machine.fail("grep -F '[EPG_CAP]' /var/lib/edcb/EpgTimerSrv.ini")
-    machine.succeed("grep -F 'SERVER_HOST=127.0.0.1' /var/lib/edcb/lib/BonDriver_LinuxMirakc.so.ini")
-    machine.fail("grep -F 'DECODE_B25=' /var/lib/edcb/lib/BonDriver_LinuxMirakc.so.ini")
+    machine.fail("test -e /var/lib/edcb/lib/BonDriver_LinuxMirakc.so.ini")
     machine.succeed("grep -F 'TsBuffMaxCount=5000' /var/lib/edcb/EpgDataCap_Bon.ini")
     machine.succeed("grep -F 'WriteBuffMaxCount=-1' /var/lib/edcb/EpgDataCap_Bon.ini")
     machine.succeed("grep -F 'Macro=$ZtoH(Title)$.ts' /var/lib/edcb/RecName_Macro.so.ini")
