@@ -106,7 +106,9 @@ ISDBScanner は上流sourceをPythonで実行し、次をNix closureに含めて
 - recording directory以外へ広いwrite権限を与えない。
 - `EpgTimerSrv.ini`, `Common.ini`, `EpgDataCap_Bon.ini`, `RecName_Macro.so.ini`, `BonDriver_LinuxMirakc.so.ini` はUTF-8（BOMなし）でNixから生成する。
 - EDCBのsystem clock変更機能はdefaultで `TimeSync=0`。時刻同期はsystemd-timesyncdやchronyへ任せる。
-- BonDriverのdefault接続先はHTTP `127.0.0.1:40772`、`SERVICE_SPLIT=0`、`DECODE_B25=1`。
+- EpgTimerSrvのdefaultはloopback限定TCP `4510`、KonomiTV互換用 `CompatFlags=128`、BonDriver同時利用数1に絞る。
+- BonDriverのdefault接続先はHTTP `127.0.0.1:40772`。recisdbが既定でB25処理するため `DECODE_B25` は書かず、上流既定値の0を使う。
+- EPG取得時刻、実チューナー数、録画方針、ログなどの環境固有値はmodule defaultに含めず、ホスト設定で指定する。
 - BonDriver_LinuxMirakc upstreamはMirakurun互換性を未テストとしている。warningを消さず、実機で長時間録画を検証する。
 
 ### KonomiTV

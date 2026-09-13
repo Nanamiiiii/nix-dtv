@@ -46,20 +46,22 @@ in
 
     settings = lib.mkOption {
       type = ini.type;
+      default = { };
       example = {
-        SET = {
-          EnableHttpSrv = 2;
-          HttpAccessControlList = "+127.0.0.1,+::1,+::ffff:127.0.0.1";
-          EnableTCPSrv = 1;
-          TCPPort = 4510;
-          TimeSync = 0;
+        EPG_CAP = {
+          Count = 1;
+          "0" = "05:15";
+          "0Select" = 1;
+          "0BasicOnlyFlags" = 14;
         };
+        "BonDriver_LinuxMirakc.so".Count = 4;
       };
-      description = "Managed EpgTimerSrv.ini settings. TimeSync should remain disabled.";
+      description = "Managed EpgTimerSrv.ini settings. Defaults only cover local TCP access, KonomiTV compatibility, safe clock handling, and one conservative BonDriver instance.";
     };
 
     commonSettings = lib.mkOption {
       type = ini.type;
+      default = { };
       description = "Additional managed Common.ini settings.";
     };
 
@@ -100,10 +102,6 @@ in
             SERVER_TYPE = "http";
             SERVER_HOST = "127.0.0.1";
             SERVER_PORT = 40772;
-            SERVER_SOCKPATH = "/run/mirakurun/mirakurun.sock";
-            DECODE_B25 = 1;
-            PRIORITY = 10;
-            SERVICE_SPLIT = 0;
           };
         };
         description = "Managed BonDriver_LinuxMirakc.so.ini settings.";
@@ -137,88 +135,28 @@ in
     ++ map (name: "L+ ${runtimeLibDir}/${name} - - - - ${cfg.package}/lib/edcb/${name}") edcbLibraries;
 
     services.edcb.commonSettings.SET = {
-      BSBasicOnly = lib.mkDefault 0;
-      CS1BasicOnly = lib.mkDefault 1;
-      CS2BasicOnly = lib.mkDefault 1;
-      CS3BasicOnly = lib.mkDefault 1;
       RecFolderNum = lib.mkDefault 1;
       RecFolderPath0 = lib.mkDefault cfg.recordingDir;
     };
 
+    # formats.ini is one leaf option, so an attrset in mkOption.default would be
+    # replaced wholesale by any partial user definition. Per-key mkDefault
+    # definitions preserve these integration defaults while remaining overridable.
     services.edcb.settings = {
       SET = {
-        EnableHttpSrv = lib.mkDefault 1;
-        HttpAccessControlList = lib.mkDefault "+127.0.0.0/8,+10.0.0.0/8,+172.16.0.0/12,+192.168.0.0/16,+169.254.0.0/16,+100.64.0.0/10";
-
         EnableTCPSrv = lib.mkDefault 1;
-        TCPAccessControlList = lib.mkDefault "+127.0.0.0/8,+10.0.0.0/8,+172.16.0.0/12,+192.168.0.0/16,+169.254.0.0/16,+100.64.0.0/10";
+        TCPAccessControlList = lib.mkDefault "+127.0.0.1,+::1,+::ffff:127.0.0.1";
         TCPPort = lib.mkDefault 4510;
-
-        NGEpgCapTime = lib.mkDefault 30;
-        NGEpgCapTunerTime = lib.mkDefault 30;
-
-        RecEndMode = lib.mkDefault 0;
-        StartMargin = lib.mkDefault 10;
-        EndMargin = lib.mkDefault 5;
-        RecAppWakeTime = lib.mkDefault 3;
-
-        RecNW = lib.mkDefault 1;
-        FixedTunerPriority = lib.mkDefault 0;
-        RetryOtherTuners = lib.mkDefault 1;
-
-        RecNamePlugIn = lib.mkDefault 1;
-        RecNamePlugInFile = lib.mkDefault "RecName_Macro.so";
-
-        EpgArchivePeriodHour = lib.mkDefault 480000;
-        SaveNotifyLog = lib.mkDefault 1;
-        SaveDebugLog = lib.mkDefault 1;
-        CompatFlags = lib.mkDefault 4095;
-
+        CompatFlags = lib.mkDefault 128;
         TimeSync = lib.mkDefault 0;
       };
-
-      EPG_CAP = {
-        Count = lib.mkDefault 3;
-
-        "0" = lib.mkDefault "05:15";
-        "0Select" = lib.mkDefault 1;
-        "0BasicOnlyFlags" = lib.mkDefault 14;
-
-        "1" = lib.mkDefault "11:15";
-        "1Select" = lib.mkDefault 1;
-        "1BasicOnlyFlags" = lib.mkDefault 14;
-
-        "2" = lib.mkDefault "17:15";
-        "2Select" = lib.mkDefault 1;
-        "2BasicOnlyFlags" = lib.mkDefault 14;
-      };
-
-      REC_DEF = {
-        Priority = lib.mkDefault 3;
-        ServiceMode = lib.mkDefault 16;
-      };
-
-      TVTEST = {
-        Num = lib.mkDefault 1;
-        "0" = lib.mkDefault "BonDriver_LinuxMirakc.so";
-      };
-
-      "BonDriver_LinuxMirakc.so" = {
-        Count = lib.mkDefault 4;
-        GetEpg = lib.mkDefault 1;
-        EPGCount = lib.mkDefault 2;
-        Priority = lib.mkDefault 0;
-      };
+      "BonDriver_LinuxMirakc.so".Count = lib.mkDefault 1;
     };
 
     services.edcb.bonDriver.settings.GLOBAL = {
       SERVER_TYPE = lib.mkDefault "http";
       SERVER_HOST = lib.mkDefault "127.0.0.1";
       SERVER_PORT = lib.mkDefault 40772;
-      SERVER_SOCKPATH = lib.mkDefault "/run/mirakurun/mirakurun.sock";
-      DECODE_B25 = lib.mkDefault 0;
-      PRIORITY = lib.mkDefault 10;
-      SERVICE_SPLIT = lib.mkDefault 0;
     };
 
     systemd.services.edcb = {

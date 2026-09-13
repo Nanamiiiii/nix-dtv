@@ -87,10 +87,30 @@ nix run github:Nanamiiiii/nix-dtv#isdb-scanner -- ./scanned
 - Mirakurun は `mirakurun:mirakurun` で動き、supplementary group `video` だけを追加します。生成済み YAML は Nix store、DB と logo は `/var/lib/mirakurun` に置きます。
 - EDCB は `edcb:edcb` で動き、`dtv` group だけを追加します。実行ファイルと `.so` の実体は Nix store、設定と状態は `/var/lib/edcb`、録画だけは指定した recording directory に書き込みます。
 - `EpgTimerSrv.ini`、`Common.ini`、`EpgDataCap_Bon.ini`、`RecName_Macro.so.ini`、`BonDriver_LinuxMirakc.so.ini` は UTF-8（BOM なし）で Nix から生成します。追加設定はそれぞれ `services.edcb.settings`、`commonSettings`、`epgDataCapBonSettings`、`recNameMacroSettings`、`bonDriver.settings` で指定します。
-- EDCB の `TimeSync` は既定で `0` です。時刻同期は systemd-timesyncd や chrony に任せてください。
+- EDCB の既定値は、loopback限定のTCP接続、KonomiTV向けの `CompatFlags=128`、`TimeSync=0`、保守的なBonDriver同時利用数1、録画先、localhost上のMirakurun接続だけです。
+- EPG取得時刻、実際のチューナー数、録画マージン、ファイル名、ログ、B25処理などは環境依存です。指定しない項目にはEDCBとBonDriverの上流既定値が使われます。
+- recisdbは既定でB25処理を行うため、標準構成ではBonDriver側の `DECODE_B25` を設定しません。raw TSを出すチューナーコマンドとMirakurunのdecoderを使う場合だけ明示してください。
+- EDCB の `TimeSync` は `0` のままにし、時刻同期は systemd-timesyncd や chrony に任せてください。
 - KonomiTV は公式 `ghcr.io/tsukumijima/konomitv:latest` image を Docker backend と host network で起動します。upstream image の互換性を優先して container root のままです。
 - KonomiTV の `config.yaml` は Nix store から read-only mount されます。Web UI で server config を永続変更せず、Nix の `services.konomitv.settings` を変更してください。
 - KonomiTV には録画 directory を read-only、capture/data/logs だけを read-write mount します。ホスト root 全体は mount しません。
+
+実機のチューナー数やEPG取得方針はホスト設定に記述します。たとえば4チューナー中2台をEPG取得に使い、毎日05:15に取得する場合は次のように指定します。
+
+```nix
+services.edcb.settings = {
+  "BonDriver_LinuxMirakc.so" = {
+    Count = 4;
+    EPGCount = 2;
+  };
+  EPG_CAP = {
+    Count = 1;
+    "0" = "05:15";
+    "0Select" = 1;
+    "0BasicOnlyFlags" = 14;
+  };
+};
+```
 
 個別 module も直接利用できます。詳しい option は `nixos-option services.mirakurun`、`services.edcb`、`services.konomitv`、`hardware.px4_drv` を参照してください。
 
