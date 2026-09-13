@@ -10,7 +10,7 @@ physical tuner -> px4_drv -> Mirakurun -> BonDriver_LinuxMirakc -> EDCB
 
 ## 提供するもの
 
-- `packages.<system>.px4_drv`: Nanamiiiii/px4_drv の kernel module、firmware、udev rule
+- `packages.<system>.px4_drv`: tsukumijima/px4_drv の kernel module、firmware、udev rule
 - `packages.<system>.mirakurun`: Node.js 22 でビルドする native Mirakurun
 - `packages.<system>.recisdb`: 最新 commit を固定した recisdb unstable（chardev / DVBv5、ARIB STD-B25 対応）
 - `packages.<system>.isdb-scanner`: 最新 release を固定した ISDBScanner（recisdb を実行時依存に含む）
@@ -19,7 +19,7 @@ physical tuner -> px4_drv -> Mirakurun -> BonDriver_LinuxMirakc -> EDCB
 - `overlays.default`: 上記を `pkgs.nix-dtv` 以下へ追加する overlay
 - `nixosModules.{default,dtv,px4_drv,mirakurun,edcb,konomitv}`
 
-px4_drv に含まれる udev rule は upstream fork と同じ `root:video`, mode `0664` です。
+px4_drv に含まれる udev rule は upstream と同じ `root:video`, mode `0664` です。
 
 ## 使用例
 

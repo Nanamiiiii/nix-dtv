@@ -51,11 +51,11 @@ tests/{default,module-eval,mirakurun,edcb,integration}.nix
 
 ## package の固定値と方針
 
-2026-09-13 時点の固定値です。
+2026-09-14 時点の固定値です。
 
 | package | version / revision | 方針 |
 | --- | --- | --- |
-| px4_drv | `0.5.6-unstable-2026-09-09`, `16ba2eefae6b0bb0ca21bebc17ecd1aa7894ab3f` | `Nanamiiiii/px4_drv` を対象kernelでbuild |
+| px4_drv | `0.5.6-unstable-2026-07-26`, `9eedea8c502875a788697984b93b50032339b9aa` | `tsukumijima/px4_drv` を対象kernelでbuild |
 | Mirakurun | `4.1.3`, `5770073e9b30d523512858ca82f45386f51a08fd` | Node.js 22 native package。Dockerは使わない |
 | recisdb | `1.2.4-unstable-2026-08-22`, `d4210d1540d3003c23d7138357a1e4b91794e767` | default branchの最新commitを固定するunstable package |
 | ISDBScanner | `1.3.3` / tag `v1.3.3` | GitHubの最新releaseを固定 |
@@ -86,7 +86,7 @@ ISDBScanner は上流sourceをPythonで実行し、次をNix closureに含めて
 
 - 実際の `config.boot.kernelPackages` に対してbuildする。
 - kernel module、firmware、udev ruleをpackageから登録する。
-- upstream forkと同じくdevice permissionは `root:video`, mode `0664`。least privilegeとしての`0660`化は将来検討であり、現在は変更しない。
+- upstreamと同じくdevice permissionは `root:video`, mode `0664`。least privilegeとしての`0660`化は将来検討であり、現在は変更しない。
 
 ### Mirakurun
 

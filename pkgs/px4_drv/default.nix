@@ -8,13 +8,13 @@
 
 stdenv.mkDerivation {
   pname = "px4_drv";
-  version = "0.5.6-unstable-2026-09-09";
+  version = "0.5.6-unstable-2026-07-26";
 
   src = fetchFromGitHub {
-    owner = "Nanamiiiii";
+    owner = "tsukumijima";
     repo = "px4_drv";
-    rev = "16ba2eefae6b0bb0ca21bebc17ecd1aa7894ab3f";
-    hash = "sha256-8tqoFQYsa/y45kC7+zzu0BxKVhXLCG6YQEVa4ER2uNo=";
+    rev = "9eedea8c502875a788697984b93b50032339b9aa";
+    hash = "sha256-sIGLaEpYU5G/JR8KfACGDd3W+U/ZVWCyRzQCLRd8LVw=";
   };
 
   hardeningDisable = [ "pic" ];
@@ -49,7 +49,7 @@ stdenv.mkDerivation {
 
   meta = {
     description = "Unofficial Linux driver for PLEX PX4/PX5/PX-MLT ISDB-T/S receivers";
-    homepage = "https://github.com/Nanamiiiii/px4_drv";
+    homepage = "https://github.com/tsukumijima/px4_drv";
     license = with lib.licenses; [
       gpl2Only
       unfreeRedistributableFirmware
