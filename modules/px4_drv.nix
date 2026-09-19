@@ -5,11 +5,11 @@
 }:
 
 let
-  cfg = config.hardware.px4_drv;
+  cfg = config.hardware.dtv.px4_drv;
 in
 {
-  options.hardware.px4_drv = {
-    enable = lib.mkEnableOption "the px4_drv kernel module";
+  options.hardware.dtv.px4_drv = {
+    enable = lib.mkEnableOption "Unofficial Linux Driver for PLEX and e-Better ISDB-T/S Tuner";
 
     package = lib.mkOption {
       type = lib.types.package;

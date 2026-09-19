@@ -42,12 +42,13 @@ in
       "d ${cfg.recordingDir} 2770 root ${cfg.recordingGroup} - -"
     ];
 
-    hardware.px4_drv.enable = lib.mkDefault cfg.px4_drv.enable;
+    hardware.dtv.px4_drv.enable = lib.mkDefault cfg.px4_drv.enable;
     services.mirakurun.enable = lib.mkDefault cfg.mirakurun.enable;
     services.edcb = {
       enable = lib.mkDefault cfg.edcb.enable;
       recordingDir = lib.mkDefault cfg.recordingDir;
       recordingGroup = lib.mkDefault cfg.recordingGroup;
+      bondriver = lib.mkDefault [ "mirakc" ];
     };
     services.konomitv = {
       enable = lib.mkDefault cfg.konomitv.enable;

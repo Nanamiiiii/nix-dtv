@@ -34,6 +34,7 @@
         default = import ./modules;
         dtv = import ./modules/dtv.nix;
         px4_drv = import ./modules/px4_drv.nix;
+        bondriver = import ./modules/bondriver.nix;
         mirakurun = import ./modules/mirakurun.nix;
         edcb = import ./modules/edcb.nix;
         konomitv = import ./modules/konomitv.nix;

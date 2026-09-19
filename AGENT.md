@@ -34,8 +34,9 @@ physical tuner
 - NixOS module:
   - `nixosModules.default`: 全 module を import する統合入口
   - `nixosModules.dtv`: `services.dtv` convenience layer
-  - `nixosModules.px4_drv`: `hardware.px4_drv`
+  - `nixosModules.px4_drv`: `hardware.dtv.px4_drv`
   - `nixosModules.mirakurun`: `services.mirakurun`
+  - `nixosModules.bondriver`: `hardware.dtv.bondriver`
   - `nixosModules.edcb`: `services.edcb`
   - `nixosModules.konomitv`: `services.konomitv`
 
@@ -45,7 +46,7 @@ physical tuner
 flake.nix
 pkgs/default.nix
 pkgs/{px4_drv,mirakurun,recisdb,isdb-scanner,edcb,bondriver-linux-mirakc}/default.nix
-modules/{default,dtv,px4_drv,mirakurun,edcb,konomitv}.nix
+modules/{default,dtv,px4_drv,bondriver,mirakurun,edcb,konomitv}.nix
 tests/{default,module-eval,mirakurun,edcb,integration}.nix
 ```
 
@@ -102,12 +103,13 @@ ISDBScanner は上流sourceをPythonで実行し、次をNix closureに含めて
 ### EDCB / BonDriver
 
 - EDCBはWineではなくLinux nativeのEpgTimerSrvを `edcb:edcb` で実行する。
-- immutable binaryと`.so`はNix store、mutable settings/stateは `/var/lib/edcb` に分離する。
+- immutable binaryと`.so`はNix store、mutable settings/stateは `/var/lib/edcb`。BonDriverは `hardware.dtv.bondriver.<name>` の `package`、実バイナリへの絶対パス `driverPath`、`settings`、`settingsFile` で定義する。`settingsFile` は既定値 `null`。指定されたファイルへのリンクをEDCB側で配置し、`settings` より優先する。両方 `null` ならINIは管理しない。`mirakc` は同梱ドライバーの定義。EDCBは `services.edcb.bondriver` の文字列リストで選択された定義だけを配置する。本体は `driverPath` のbasenameで `/var/lib/edcb/lib` にリンクし、INIは隣に `<basename>.ini` として配置する。未定義の名前と選択ドライバーのbasename重複を検出する。
+- `services.edcb.bondriver` の既定値は空リスト。`services.dtv` の標準構成では `[ "mirakc" ]` を選択する。
 - EDCB userはrecording group `dtv` にだけ追加する。
 - recording directory以外へ広いwrite権限を与えない。
-- `EpgTimerSrv.ini`, `Common.ini`, `EpgDataCap_Bon.ini`, `RecName_Macro.so.ini`, `BonDriver_LinuxMirakc.so.ini` の設定optionはdefaultを `null` とし、明示されたファイルだけUTF-8（BOMなし）でNixから生成する。未指定ならEDCBが生成したmutable fileを使う。`Bitrate.ini` と `BonCtrl.ini` は上流サンプルを初回だけmutableな設定として配置し、既存ファイルを上書きしない。
-- EpgTimerSrvをNix管理する場合はsystem clock変更を無効にする `TimeSync=0`、loopback限定TCP `4510`、KonomiTV互換用 `CompatFlags=128`、BonDriver同時利用数1を補完する。時刻同期はsystemd-timesyncdやchronyへ任せる。
-- BonDriver設定をNix管理する場合の接続先はHTTP `127.0.0.1:40772`。recisdbが既定でB25処理するため `DECODE_B25` は書かず、上流既定値の0を使う。
+- `EpgTimerSrv.ini`, `Common.ini`, `EpgDataCap_Bon.ini`, `RecName_Macro.so.ini` と `hardware.dtv.bondriver."<driver name>".settings` の設定optionはdefaultを `null` とし、明示された `<driver name>.ini` だけUTF-8（BOMなし）でNixから生成する。未指定ならEDCBが生成したmutable fileを使う。`Bitrate.ini` と `BonCtrl.ini` は上流サンプルを初回だけmutableな設定として配置し、既存ファイルを上書きしない。
+- EpgTimerSrvをNix管理する場合はsystem clock変更を無効にする `TimeSync=0`、loopback限定TCP `4510`、KonomiTV互換用 `CompatFlags=128` を補完する。BonDriver同時利用数はホスト設定で指定する。時刻同期はsystemd-timesyncdやchronyへ任せる。
+- BonDriverのINI設定にはドライバー別の値を補完しない。BonDriver_LinuxMirakc自体の既定接続先はHTTP `127.0.0.1:40772`。recisdbが既定でB25処理するため `DECODE_B25` は書かず、上流既定値の0を使う。
 - EPG取得時刻、実チューナー数、録画方針、ログなどの環境固有値はmodule defaultに含めず、ホスト設定で指定する。
 - BonDriver_LinuxMirakc upstreamはMirakurun互換性を未テストとしている。warningを消さず、実機で長時間録画を検証する。
 
@@ -187,3 +189,25 @@ VMでは代替できないため、実機で次を確認する必要がありま
 - public optionやdefaultを変更したらmodule-eval testとREADMEも更新する。
 - packageを追加・更新したら`tests/default.nix`のflake check対象に含める。
 - hardwareがなくてもpackage build、module evaluation、VM testまでは必ず実行する。
+
+### EDCB INI の既存値とのマージ
+
+`services.edcb` 直下の `settingsImmutable`、`commonSettingsImmutable`、
+`epgDataCapBonSettingsImmutable`、`recNameMacroSettingsImmutable` は既定値 `true` です。
+`true` なら生成した INI を Nix store への読み取り専用リンクとして配置します。
+`false` なら NixOS activation（構成の適用時・OS 起動時）に既存 INI と Nix 定義を
+マージし、edcb:edcb 所有の通常ファイル（UTF-8、BOMなし、mode 0640）として配置します。
+EDCB のサービス再起動では再マージしません。
+
+同じセクション・キーは Nix 定義（モジュールの補完値を含む）を優先し、
+それ以外の既存値は保持します。ファイルがなければ Nix 定義から作成します。
+Nix 定義から削除したキーも既存ファイルに残っていれば保持します。
+既存ファイルのコメントや書式は保持しません。設定本体が `null` なら管理対象外です。
+設定値の外に配置方式のオプションを置く、Home Manager の Zed と同様の形式です。
+
+```nix
+services.edcb = {
+  settingsImmutable = false;
+  settings.SET.SaveLog = 1;
+};
+```

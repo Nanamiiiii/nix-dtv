@@ -15,13 +15,13 @@ let
     else
       lib.recursiveUpdate {
         SET = {
+          EnableHttpSrv = 1;
           EnableTCPSrv = 1;
-          TCPAccessControlList = "+127.0.0.1,+::1,+::ffff:127.0.0.1";
+          TCPAccessControlList = "+127.0.0.0/8,+10.0.0.0/8,+172.16.0.0/12,+192.168.0.0/16,+169.254.0.0/16,+100.64.0.0/10";
           TCPPort = 4510;
           CompatFlags = 128;
           TimeSync = 0;
         };
-        "BonDriver_LinuxMirakc.so".Count = 1;
       } cfg.settings;
   commonSettings =
     if cfg.commonSettings == null then
@@ -33,48 +33,107 @@ let
           RecFolderPath0 = cfg.recordingDir;
         };
       } cfg.commonSettings;
-  bonDriverSettings =
-    if cfg.bonDriver.settings == null then
-      null
-    else
-      lib.recursiveUpdate {
-        GLOBAL = {
-          SERVER_TYPE = "http";
-          SERVER_HOST = "127.0.0.1";
-          SERVER_PORT = 40772;
-        };
-      } cfg.bonDriver.settings;
+  selectedNames = lib.unique cfg.bondriver;
+  missingDrivers = lib.filter (
+    name: !(builtins.hasAttr name config.hardware.dtv.bondriver)
+  ) selectedNames;
+  selectedDrivers = map (
+    name:
+    let
+      driver = config.hardware.dtv.bondriver.${name};
+    in
+    driver // { fileName = builtins.baseNameOf driver.driverPath; }
+  ) (lib.filter (name: builtins.hasAttr name config.hardware.dtv.bondriver) selectedNames);
+  bonDriverIniFiles = map (driver: {
+    name = "${driver.fileName}.ini";
+    path = "${runtimeLibDir}/${driver.fileName}.ini";
+    settings = driver.settings;
+    settingsFile = driver.settingsFile;
+  }) selectedDrivers;
+  bonDriverLibraryLinks = map (
+    driver: "L+ ${runtimeLibDir}/${driver.fileName} - - - - ${driver.driverPath}"
+  ) selectedDrivers;
   iniFiles = [
     {
       name = "EpgTimerSrv.ini";
       path = "/var/lib/edcb/EpgTimerSrv.ini";
+      immutable = cfg.settingsImmutable;
       settings = epgTimerSrvSettings;
     }
     {
       name = "Common.ini";
       path = "/var/lib/edcb/Common.ini";
+      immutable = cfg.commonSettingsImmutable;
       settings = commonSettings;
     }
     {
       name = "EpgDataCap_Bon.ini";
       path = "/var/lib/edcb/EpgDataCap_Bon.ini";
+      immutable = cfg.epgDataCapBonSettingsImmutable;
       settings = cfg.epgDataCapBonSettings;
     }
     {
       name = "RecName_Macro.so.ini";
       path = "/var/lib/edcb/RecName_Macro.so.ini";
+      immutable = cfg.recNameMacroSettingsImmutable;
       settings = cfg.recNameMacroSettings;
     }
-    {
-      name = "BonDriver_LinuxMirakc.so.ini";
-      path = "${runtimeLibDir}/BonDriver_LinuxMirakc.so.ini";
-      settings = bonDriverSettings;
+  ]
+  ++ bonDriverIniFiles;
+  resolvedIniFiles = map (
+    file:
+    file
+    // {
+      source =
+        if (file.settingsFile or null) != null then
+          file.settingsFile
+        else if file.settings != null then
+          ini.generate file.name file.settings
+        else
+          null;
     }
-  ];
-  configuredIniFiles = map (file: file // { source = ini.generate file.name file.settings; }) (
-    lib.filter (file: file.settings != null) iniFiles
-  );
-  unmanagedIniFiles = lib.filter (file: file.settings == null) iniFiles;
+  ) iniFiles;
+  configuredIniFiles = lib.filter (file: file.source != null) resolvedIniFiles;
+  linkedIniFiles = lib.filter (file: file.immutable or true) configuredIniFiles;
+  mergedIniFiles = lib.filter (file: !(file.immutable or true)) configuredIniFiles;
+  mergeIni = pkgs.writeText "edcb-merge-ini.py" ''
+    import configparser
+    import os
+    import pwd
+    from pathlib import Path
+    import sys
+    import tempfile
+
+    target, source = map(Path, sys.argv[1:])
+    parser = configparser.ConfigParser(
+        interpolation=None, strict=False, delimiters=("=",),
+        comment_prefixes=(";", "#"), default_section="__EDCB_DEFAULT__",
+    )
+    parser.optionxform = str
+
+    def read_ini(path):
+        data = path.read_bytes()
+        encoding = "utf-16" if data.startswith((b"\xff\xfe", b"\xfe\xff")) else "utf-8-sig"
+        parser.read_string(data.decode(encoding), source=str(path))
+
+    if target.exists():
+        read_ini(target)
+    read_ini(source)
+    # Replace symlinks instead of writing through them into the Nix store.
+    fd, temporary = tempfile.mkstemp(prefix="." + target.name, dir=target.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as output:
+            parser.write(output, space_around_delimiters=False)
+            output.flush()
+            owner = pwd.getpwnam("edcb")
+            os.fchown(output.fileno(), owner.pw_uid, owner.pw_gid)
+            os.fchmod(output.fileno(), 0o640)
+        os.replace(temporary, target)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+  '';
+  unmanagedIniFiles = lib.filter (file: file.source == null) resolvedIniFiles;
   edcbLibraries = [
     "EpgDataCap3.so"
     "RecName_Macro.so"
@@ -83,6 +142,8 @@ let
   ];
 in
 {
+  imports = [ ./bondriver.nix ];
+
   options.services.edcb = {
     enable = lib.mkEnableOption "Linux-native EDCB EpgTimerSrv";
 
@@ -105,6 +166,12 @@ in
       description = "Group with write access to the recording directory.";
     };
 
+    settingsImmutable = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Link the generated INI from the Nix store. When false, merge Nix settings into the existing writable INI during system activation, with Nix values taking precedence. Has no effect when settings is null.";
+    };
+
     settings = lib.mkOption {
       type = lib.types.nullOr ini.type;
       default = null;
@@ -120,10 +187,22 @@ in
       description = "Managed EpgTimerSrv.ini settings. Null leaves the file unmanaged; a non-null value also receives the minimal integration defaults.";
     };
 
+    commonSettingsImmutable = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Link the generated INI from the Nix store. When false, merge Nix settings into the existing writable INI during system activation, with Nix values taking precedence. Has no effect when commonSettings is null.";
+    };
+
     commonSettings = lib.mkOption {
       type = lib.types.nullOr ini.type;
       default = null;
       description = "Managed Common.ini settings. Null leaves the file unmanaged; a non-null value also receives the recording directory defaults.";
+    };
+
+    epgDataCapBonSettingsImmutable = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Link the generated INI from the Nix store. When false, merge Nix settings into the existing writable INI during system activation, with Nix values taking precedence. Has no effect when epgDataCapBonSettings is null.";
     };
 
     epgDataCapBonSettings = lib.mkOption {
@@ -140,6 +219,12 @@ in
       description = "Managed EpgDataCap_Bon.ini settings. Null leaves the file unmanaged.";
     };
 
+    recNameMacroSettingsImmutable = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Link the generated INI from the Nix store. When false, merge Nix settings into the existing writable INI during system activation, with Nix values taking precedence. Has no effect when recNameMacroSettings is null.";
+    };
+
     recNameMacroSettings = lib.mkOption {
       type = lib.types.nullOr ini.type;
       default = null;
@@ -147,30 +232,36 @@ in
       description = "Managed RecName_Macro.so.ini settings. Null leaves the file unmanaged.";
     };
 
-    bonDriver = {
-      package = lib.mkOption {
-        type = lib.types.package;
-        default = pkgs.callPackage ../pkgs/bondriver-linux-mirakc { };
-        defaultText = lib.literalExpression "pkgs.nix-dtv.bondriver-linux-mirakc";
-        description = "BonDriver_LinuxMirakc package loaded by EDCB.";
-      };
-
-      settings = lib.mkOption {
-        type = lib.types.nullOr ini.type;
-        default = null;
-        example = {
-          GLOBAL = {
-            SERVER_TYPE = "http";
-            SERVER_HOST = "127.0.0.1";
-            SERVER_PORT = 40772;
-          };
-        };
-        description = "Managed BonDriver_LinuxMirakc.so.ini settings. Null leaves the file unmanaged; a non-null value also receives the localhost Mirakurun defaults.";
-      };
+    bondriver = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [ "mirakc" ];
+      description = "Names of BonDrivers to install from hardware.dtv.bondriver.";
     };
   };
 
   config = lib.mkIf cfg.enable {
+    assertions = [
+      {
+        assertion = missingDrivers == [ ];
+        message = "services.edcb.bondriver references undefined hardware.dtv.bondriver entries: ${lib.concatStringsSep ", " missingDrivers}";
+      }
+      {
+        assertion =
+          builtins.length (lib.unique (map (driver: driver.fileName) selectedDrivers))
+          == builtins.length selectedDrivers;
+        message = "services.edcb.bondriver selects drivers with duplicate binary filenames.";
+      }
+    ]
+    ++ map (driver: {
+      assertion =
+        lib.hasPrefix "/" driver.driverPath
+        && builtins.match "[A-Za-z0-9/._+-]+" driver.driverPath != null
+        && lib.hasPrefix "BonDriver" driver.fileName
+        && lib.hasSuffix ".so" driver.fileName;
+      message = "Selected BonDriver driverPath must be an absolute path without whitespace or special characters to a BonDriver*.so file.";
+    }) selectedDrivers;
+
     users.groups.${cfg.recordingGroup} = { };
     users.groups.edcb = { };
     users.users.edcb = {
@@ -186,19 +277,19 @@ in
       "C /var/lib/edcb/BonCtrl.ini 0640 edcb edcb - ${cfg.package}/share/edcb/initial-state/BonCtrl.ini"
       "C /var/lib/edcb/ContentTypeText.txt 0640 edcb edcb - ${cfg.package}/share/edcb/initial-state/ContentTypeText.txt"
       "C /var/lib/edcb/HttpPublic - edcb edcb - ${cfg.package}/share/edcb/initial-state/HttpPublic"
-      "L+ ${runtimeLibDir}/BonDriver_LinuxMirakc.so - - - - ${cfg.bonDriver.package}/lib/edcb/BonDriver_LinuxMirakc.so"
     ]
-    ++ map (file: "L+ ${file.path} - - - - ${file.source}") configuredIniFiles
+    ++ bonDriverLibraryLinks
+    ++ map (file: "L+ ${file.path} - - - - ${file.source}") linkedIniFiles
     ++ map (name: "L+ ${runtimeLibDir}/${name} - - - - ${cfg.package}/lib/edcb/${name}") edcbLibraries;
 
-    # When a formerly managed INI is unset, remove only the old Nix-store
-    # symlink. Mutable files created by EDCB itself are deliberately preserved.
-    system.activationScripts.edcb-unmanage-ini.text = ''
+    # When both INI sources are null, remove only its store link.
+    # Mutable files are deliberately preserved.
+    system.activationScripts.edcb-unmanage-files.text = ''
       removeEdcbStoreLink() {
-        iniPath="$1"
-        if [ -L "$iniPath" ]; then
-          case "$(${pkgs.coreutils}/bin/readlink "$iniPath")" in
-            /nix/store/*) ${pkgs.coreutils}/bin/rm -f -- "$iniPath" ;;
+        filePath="$1"
+        if [ -L "$filePath" ]; then
+          case "$(${pkgs.coreutils}/bin/readlink "$filePath")" in
+            /nix/store/*) ${pkgs.coreutils}/bin/rm -f -- "$filePath" ;;
           esac
         fi
       }
@@ -206,6 +297,20 @@ in
         file: "removeEdcbStoreLink ${lib.escapeShellArg file.path}"
       ) unmanagedIniFiles}
     '';
+
+    system.activationScripts.edcb-merge-settings = lib.mkIf (mergedIniFiles != [ ]) {
+      deps = [
+        "users"
+        "edcb-unmanage-files"
+      ];
+      text = ''
+        ${pkgs.coreutils}/bin/install -d -m 0750 -o edcb -g edcb /var/lib/edcb
+        ${lib.concatMapStringsSep "\n" (
+          file:
+          "${pkgs.python3}/bin/python ${mergeIni} ${lib.escapeShellArg file.path} ${lib.escapeShellArg (toString file.source)}"
+        ) mergedIniFiles}
+      '';
+    };
 
     systemd.services.edcb = {
       description = "EDCB EpgTimerSrv";
@@ -215,7 +320,10 @@ in
         "mirakurun.service"
       ];
       wants = [ "mirakurun.service" ];
-      restartTriggers = map (file: file.source) configuredIniFiles;
+      restartTriggers =
+        map (file: file.source) configuredIniFiles
+        ++ map (driver: driver.package) selectedDrivers
+        ++ map (driver: driver.driverPath) selectedDrivers;
       serviceConfig = {
         ExecStart = "${cfg.package}/bin/EpgTimerSrv";
         User = "edcb";
@@ -238,8 +346,6 @@ in
       };
     };
 
-    warnings = [
-      "BonDriver_LinuxMirakc upstream states that Mirakurun compatibility is untested; verify tuning and long-running recording with your hardware."
-    ];
+    warnings = lib.optional (builtins.elem "mirakc" selectedNames) "BonDriver_LinuxMirakc upstream states that Mirakurun compatibility is untested; verify tuning and long-running recording with your hardware.";
   };
 }
