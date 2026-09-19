@@ -30,6 +30,7 @@ physical tuner
   - `recisdb`
   - `isdb-scanner`
   - `edcb`
+  - `edcb-material-webui`
   - `bondriver-linux-mirakc`
 - NixOS module:
   - `nixosModules.default`: 全 module を import する統合入口
@@ -45,7 +46,7 @@ physical tuner
 ```text
 flake.nix
 pkgs/default.nix
-pkgs/{px4_drv,mirakurun,recisdb,isdb-scanner,edcb,bondriver-linux-mirakc}/default.nix
+pkgs/{px4_drv,mirakurun,recisdb,isdb-scanner,edcb,edcb-material-webui,bondriver-linux-mirakc}/default.nix
 modules/{default,dtv,px4_drv,bondriver,mirakurun,edcb,konomitv}.nix
 tests/{default,module-eval,mirakurun,edcb,integration}.nix
 ```
@@ -61,6 +62,7 @@ tests/{default,module-eval,mirakurun,edcb,integration}.nix
 | recisdb | `1.2.4-unstable-2026-08-22`, `d4210d1540d3003c23d7138357a1e4b91794e767` | default branchの最新commitを固定するunstable package |
 | ISDBScanner | `1.3.3` / tag `v1.3.3` | GitHubの最新releaseを固定 |
 | EDCB | `work-plus-s-2026-09-04`, `ebf50c730ccf8c1732e0bd8a4e2a3417a94d9b2b` | `Document/Unix/Makefile` に基づくLinux native build |
+| EDCB Material WebUI | `3-unstable-2026-09-19`, `10e376a48f8dc0f01cd80cf299fcc2424ac56c35` | E3 branch の `E3`、`api`、`Setting` を固定し、INI は CP932 から UTF-8 に変換 |
 | BonDriver_LinuxMirakc | `0-unstable-2024-10-14`, `cfbefc6d21dab4009db5f124984c1b720b76d869` | picojsonも固定しnative `.so` をbuild |
 
 recisdb は submodule の libaribb25 を含め、`dvb` feature を有効にしてあります。したがって chardev と DVBv5 の両方に対応し、build/runtime dependency として CMake、bindgen、pcsc-lite、v4l-utils が必要です。
@@ -113,6 +115,15 @@ ISDBScanner は上流sourceをPythonで実行し、次をNix closureに含めて
 - EPG取得時刻、実チューナー数、録画方針、ログなどの環境固有値はmodule defaultに含めず、ホスト設定で指定する。
 - BonDriver_LinuxMirakc upstreamはMirakurun互換性を未テストとしている。warningを消さず、実機で長時間録画を検証する。
 
+### EDCB Material WebUI
+
+- `services.edcb.materialWebUI.enable` は既定で `false`。有効時、固定した E3 package の `HttpPublic/E3` と `HttpPublic/api` を `/var/lib/edcb/HttpPublic` 以下にリンクする。
+- 無効化した場合は managed な `E3` と `api` の store link だけを削除し、mutable な設定ファイルは残す。
+- 上流のディレクトリ名は `Setting`（単数）。`Setting/HttpPublic.ini` と `Setting/XCODE_OPTIONS.lua` は `/var/lib/edcb/Setting` に初回だけ mutable なファイルとしてコピーし、既存値を上書きしない。INI は CP932 から UTF-8（BOMなし）に変換する。
+- HTTP サーバーは `services.edcb.settings` を非 `null` にしたときに補完される `EnableHttpSrv=1` で有効になる。E3 の利用例では `HttpNumThreads=50` を明示する。標準ポートは `5510`、アクセス制御は EDCB の loopback 既定値を使う。
+- EDCB package は Lua 5.2 を build input に含め、Lua ライブラリへの rpath を設定済み。WebUI 用に別の Lua interpreter は不要。E3 側には未設定の `NVRAM.ZIP` を連結すると失敗するため、空値を許す最小 patch を適用。
+- HTTPS/PWA/TS-Live! には証明書と HTTPS port、リモート視聴にはトランスコーダーが別途必要。
+
 ### KonomiTV
 
 - native package化せず、公式 `ghcr.io/tsukumijima/konomitv:latest` をNixOSの`virtualisation.oci-containers`とDocker backendで起動する。
@@ -162,6 +173,7 @@ nix flake check
 nix flake check --all-systems --no-build
 nix build .#recisdb
 nix build .#isdb-scanner
+nix build .#edcb-material-webui
 nix build .#checks.x86_64-linux.integration
 ```
 

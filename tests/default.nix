@@ -7,6 +7,7 @@
 {
   recisdb-package = pkgs.nix-dtv.recisdb;
   isdb-scanner-package = pkgs.nix-dtv.isdb-scanner;
+  edcb-material-webui-package = pkgs.nix-dtv.edcb-material-webui;
   module-eval = import ./module-eval.nix {
     inherit
       nixpkgs

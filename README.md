@@ -15,6 +15,7 @@ physical tuner -> px4_drv -> Mirakurun -> BonDriver_LinuxMirakc -> EDCB
 - `packages.<system>.recisdb`: 最新 commit を固定した recisdb unstable（chardev / DVBv5、ARIB STD-B25 対応）
 - `packages.<system>.isdb-scanner`: 最新 release を固定した ISDBScanner（recisdb を実行時依存に含む）
 - `packages.<system>.edcb`: `Document/Unix/Makefile` を使う Linux native EDCB
+- `packages.<system>.edcb-material-webui`: EMWUI 3 の E3 ブランチを固定した Web UI
 - `packages.<system>.bondriver-linux-mirakc`: picojson を含む native BonDriver `.so`
 - `overlays.default`: 上記を `pkgs.nix-dtv` 以下へ追加する overlay
 - `nixosModules.{default,dtv,px4_drv,bondriver,mirakurun,edcb,konomitv}`
@@ -133,6 +134,24 @@ services.edcb.settings = {
 };
 ```
 
+### EMWUI 3 (EDCB Material WebUI)
+
+`services.edcb.materialWebUI.enable = true;` で [EMWUI 3 の E3 ブランチ](https://github.com/EMWUI/EDCB_Material_WebUI/tree/E3) を導入します。`/var/lib/edcb/HttpPublic/E3` と `api` は固定した package へのリンク、`/var/lib/edcb/Setting/HttpPublic.ini` と `XCODE_OPTIONS.lua` は初回だけ UTF-8（BOMなし）でコピーする編集可能なファイルです。上流のディレクトリ名は `Setting`（単数）です。既存の設定ファイルは上書きしません。
+
+```nix
+services.edcb = {
+  materialWebUI.enable = true;
+  settings = {
+    SET = {
+      HttpNumThreads = 50;
+      # LAN からのアクセスを許可する場合だけ、HttpAccessControlList も指定します。
+    };
+  };
+};
+```
+
+`settings` を指定すると、この module が補完する `EnableHttpSrv=1` により HTTP サーバーが有効になります。既定の待受ポートは `5510`、アクセス許可は EDCB の既定値に従い loopback のみです。`http://127.0.0.1:5510/E3/` からアクセスできます。HTTPS と PWA、TS-Live! を使う場合は上流の手順に従って証明書と HTTPS ポートを設定してください。リモート視聴には別途トランスコーダーが必要です。EDCB 本体は既に Lua 5.2 にリンクし、実行時にも Nix store 内の Lua ライブラリを参照します。
+
 個別 module も直接利用できます。詳しい option は `nixos-option services.mirakurun`、`services.edcb`、`services.konomitv`、`hardware.dtv.px4_drv` を参照してください。
 
 ## BonDriver と Mirakurun の互換性
@@ -148,6 +167,7 @@ nix build .#mirakurun
 nix build .#recisdb
 nix build .#isdb-scanner
 nix build .#edcb
+nix build .#edcb-material-webui
 nix build .#bondriver-linux-mirakc
 ```
 

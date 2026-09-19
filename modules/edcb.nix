@@ -9,6 +9,7 @@ let
   cfg = config.services.edcb;
   ini = pkgs.formats.ini { };
   runtimeLibDir = "/var/lib/edcb/lib";
+  webUIRoot = "${cfg.materialWebUI.package}/share/edcb-material-webui";
   epgTimerSrvSettings =
     if cfg.settings == null then
       null
@@ -17,7 +18,7 @@ let
         SET = {
           EnableHttpSrv = 1;
           EnableTCPSrv = 1;
-          TCPAccessControlList = "+127.0.0.0/8,+10.0.0.0/8,+172.16.0.0/12,+192.168.0.0/16,+169.254.0.0/16,+100.64.0.0/10";
+          TCPAccessControlList = "+127.0.0.1,+::1,+::ffff:127.0.0.1";
           TCPPort = 4510;
           CompatFlags = 128;
           TimeSync = 0;
@@ -232,6 +233,17 @@ in
       description = "Managed RecName_Macro.so.ini settings. Null leaves the file unmanaged.";
     };
 
+    materialWebUI = {
+      enable = lib.mkEnableOption "EMWUI 3 for EDCB";
+
+      package = lib.mkOption {
+        type = lib.types.package;
+        default = pkgs.callPackage ../pkgs/edcb-material-webui { };
+        defaultText = lib.literalExpression "pkgs.nix-dtv.edcb-material-webui";
+        description = "EMWUI 3 package to place in EDCB's HttpPublic and Setting directories.";
+      };
+    };
+
     bondriver = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ ];
@@ -278,6 +290,13 @@ in
       "C /var/lib/edcb/ContentTypeText.txt 0640 edcb edcb - ${cfg.package}/share/edcb/initial-state/ContentTypeText.txt"
       "C /var/lib/edcb/HttpPublic - edcb edcb - ${cfg.package}/share/edcb/initial-state/HttpPublic"
     ]
+    ++ lib.optionals cfg.materialWebUI.enable [
+      "d /var/lib/edcb/Setting 0750 edcb edcb - -"
+      "L+ /var/lib/edcb/HttpPublic/E3 - - - - ${webUIRoot}/HttpPublic/E3"
+      "L+ /var/lib/edcb/HttpPublic/api - - - - ${webUIRoot}/HttpPublic/api"
+      "C /var/lib/edcb/Setting/HttpPublic.ini 0640 edcb edcb - ${webUIRoot}/Setting/HttpPublic.ini"
+      "C /var/lib/edcb/Setting/XCODE_OPTIONS.lua 0640 edcb edcb - ${webUIRoot}/Setting/XCODE_OPTIONS.lua"
+    ]
     ++ bonDriverLibraryLinks
     ++ map (file: "L+ ${file.path} - - - - ${file.source}") linkedIniFiles
     ++ map (name: "L+ ${runtimeLibDir}/${name} - - - - ${cfg.package}/lib/edcb/${name}") edcbLibraries;
@@ -296,6 +315,18 @@ in
       ${lib.concatMapStringsSep "\n" (
         file: "removeEdcbStoreLink ${lib.escapeShellArg file.path}"
       ) unmanagedIniFiles}
+      ${lib.optionalString (!cfg.materialWebUI.enable) ''
+        removeMaterialWebUILink() {
+          filePath="$1"
+          if [ -L "$filePath" ]; then
+            case "$(${pkgs.coreutils}/bin/readlink "$filePath")" in
+              /nix/store/*/share/edcb-material-webui/HttpPublic/*) ${pkgs.coreutils}/bin/rm -f -- "$filePath" ;;
+            esac
+          fi
+        }
+        removeMaterialWebUILink /var/lib/edcb/HttpPublic/E3
+        removeMaterialWebUILink /var/lib/edcb/HttpPublic/api
+      ''}
     '';
 
     system.activationScripts.edcb-merge-settings = lib.mkIf (mergedIniFiles != [ ]) {
@@ -323,7 +354,8 @@ in
       restartTriggers =
         map (file: file.source) configuredIniFiles
         ++ map (driver: driver.package) selectedDrivers
-        ++ map (driver: driver.driverPath) selectedDrivers;
+        ++ map (driver: driver.driverPath) selectedDrivers
+        ++ lib.optional cfg.materialWebUI.enable cfg.materialWebUI.package;
       serviceConfig = {
         ExecStart = "${cfg.package}/bin/EpgTimerSrv";
         User = "edcb";

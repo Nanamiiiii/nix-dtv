@@ -12,6 +12,13 @@ let
     touch "$out/share/edcb/initial-state/"{Bitrate.ini,BonCtrl.ini,ContentTypeText.txt}
     touch "$out/share/edcb/initial-state/HttpPublic/index.html"
   '';
+  fakeWebUI = pkgs.runCommand "fake-edcb-material-webui" { } ''
+    mkdir -p "$out/share/edcb-material-webui/HttpPublic/"{E3,api} "$out/share/edcb-material-webui/Setting"
+    touch "$out/share/edcb-material-webui/HttpPublic/E3/index.html"
+    touch "$out/share/edcb-material-webui/HttpPublic/api/util.lua"
+    echo '[SET]' > "$out/share/edcb-material-webui/Setting/HttpPublic.ini"
+    echo 'XCODE_OPTIONS={}' > "$out/share/edcb-material-webui/Setting/XCODE_OPTIONS.lua"
+  '';
   fakeBonDriver = pkgs.runCommand "fake-bondriver" { } ''
     mkdir -p "$out/lib/edcb"
     touch "$out/lib/edcb/BonDriver_LinuxMirakc.so"
@@ -56,6 +63,10 @@ pkgs.testers.runNixOSTest {
     services.edcb = {
       enable = true;
       package = fakeEdcb;
+      materialWebUI = {
+        enable = true;
+        package = fakeWebUI;
+      };
       bondriver = [
         "mirakc"
         "custom"
@@ -83,6 +94,12 @@ pkgs.testers.runNixOSTest {
     machine.succeed("test $(stat -c %a /mnt/tv/recordings) = 2770")
     machine.succeed("test -f /var/lib/edcb/Bitrate.ini")
     machine.succeed("test -f /var/lib/edcb/BonCtrl.ini")
+    machine.succeed("test $(readlink -f /var/lib/edcb/HttpPublic/E3) = ${fakeWebUI}/share/edcb-material-webui/HttpPublic/E3")
+    machine.succeed("test $(readlink -f /var/lib/edcb/HttpPublic/api) = ${fakeWebUI}/share/edcb-material-webui/HttpPublic/api")
+    machine.succeed("test ! -L /var/lib/edcb/Setting/HttpPublic.ini")
+    machine.succeed("test ! -L /var/lib/edcb/Setting/XCODE_OPTIONS.lua")
+    machine.succeed("test $(stat -c %a /var/lib/edcb/Setting/HttpPublic.ini) = 640")
+    machine.succeed("test $(stat -c %U /var/lib/edcb/Setting/XCODE_OPTIONS.lua) = edcb")
     machine.succeed("test -L /var/lib/edcb/lib/BonDriver_LinuxMirakc.so")
     machine.succeed("test -L /var/lib/edcb/lib/BonDriver_Custom.so")
     machine.fail("test -e /var/lib/edcb/lib/BonDriver_Unselected.so")
@@ -95,7 +112,7 @@ pkgs.testers.runNixOSTest {
     machine.succeed("grep -F 'CompatFlags=128' /var/lib/edcb/EpgTimerSrv.ini")
     machine.succeed("grep -F 'TimeSync=0' /var/lib/edcb/EpgTimerSrv.ini")
     machine.fail("grep -F '[BonDriver_LinuxMirakc.so]' /var/lib/edcb/EpgTimerSrv.ini")
-    machine.fail("grep -F 'EnableHttpSrv=' /var/lib/edcb/EpgTimerSrv.ini")
+    machine.succeed("grep -F 'EnableHttpSrv=1' /var/lib/edcb/EpgTimerSrv.ini")
     machine.fail("grep -F '[EPG_CAP]' /var/lib/edcb/EpgTimerSrv.ini")
     machine.fail("grep -F 'SERVER_HOST=' /var/lib/edcb/lib/BonDriver_LinuxMirakc.so.ini")
     machine.fail("grep -F 'SERVER_PORT=' /var/lib/edcb/lib/BonDriver_LinuxMirakc.so.ini")
@@ -130,6 +147,9 @@ pkgs.testers.runNixOSTest {
     machine.succeed("systemctl restart edcb")
     assert machine.succeed("sha256sum /var/lib/edcb/*.ini") == before
     machine.succeed("systemctl stop edcb")
+    machine.succeed("echo custom >> /var/lib/edcb/Setting/HttpPublic.ini")
+    machine.succeed("/run/current-system/activate")
+    machine.succeed("grep -Fx custom /var/lib/edcb/Setting/HttpPublic.ini")
     for _ in range(2):
         machine.succeed("/run/current-system/activate")
         for name, (key, value) in files.items():

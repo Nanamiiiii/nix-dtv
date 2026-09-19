@@ -24,6 +24,7 @@ let
         services.pcscd.enable = true;
         services.mirakurun.serverSettings.logLevel = 1;
         services.edcb.settings.SET.SaveLog = 1;
+        services.edcb.materialWebUI.enable = true;
         services.edcb.epgDataCapBonSettings.SET.TsBuffMaxCount = 5000;
         services.edcb.recNameMacroSettings.SET.Macro = "$ZtoH(Title)$.ts";
         hardware.dtv.bondriver.mirakc.settings.GLOBAL.PRIORITY = 5;
@@ -67,6 +68,9 @@ let
       }
     ];
   };
+  withoutWebUI = evaluated.extendModules {
+    modules = [ { services.edcb.materialWebUI.enable = nixpkgs.lib.mkForce false; } ];
+  };
   mergedSettings = evaluated.extendModules {
     modules = [
       {
@@ -89,6 +93,21 @@ assert nixpkgs.lib.any (
   a: !a.assertion && nixpkgs.lib.hasInfix "duplicate binary filenames" a.message
 ) duplicateBinary.config.assertions;
 assert cfg.services.edcb.settingsImmutable;
+assert cfg.services.edcb.materialWebUI.enable;
+assert
+  !(nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/HttpPublic/E3 ") withoutWebUI.config.systemd.tmpfiles.rules);
+assert nixpkgs.lib.hasInfix "removeMaterialWebUILink /var/lib/edcb/HttpPublic/E3"
+  withoutWebUI.config.system.activationScripts.edcb-unmanage-files.text;
+assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/HttpPublic/E3 ")
+  cfg.systemd.tmpfiles.rules;
+assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/HttpPublic/api ")
+  cfg.systemd.tmpfiles.rules;
+assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/Setting/HttpPublic.ini ")
+  cfg.systemd.tmpfiles.rules;
+assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/Setting/XCODE_OPTIONS.lua ")
+  cfg.systemd.tmpfiles.rules;
+assert builtins.elem cfg.services.edcb.materialWebUI.package
+  cfg.systemd.services.edcb.restartTriggers;
 assert cfg.services.edcb.commonSettingsImmutable;
 assert mergedSettings.config.systemd.services.edcb.preStart == "";
 assert builtins.elem "users"

@@ -18,6 +18,7 @@ pkgs.testers.runNixOSTest {
 
     services.mirakurun.tunerSettings = [ ];
     services.edcb.settings = { };
+    services.edcb.materialWebUI.enable = true;
 
     environment.systemPackages = [ pkgs.curl ];
   };
@@ -29,6 +30,10 @@ pkgs.testers.runNixOSTest {
 
     machine.wait_for_unit("edcb.service")
     machine.wait_for_open_port(4510)
+    machine.wait_for_open_port(5510)
+    machine.succeed("curl --fail --silent http://127.0.0.1:5510/E3/ -o /tmp/e3.html")
+    machine.succeed("grep -q '<html' /tmp/e3.html")
+    machine.succeed("curl --fail --silent http://127.0.0.1:5510/api/EnumService >/dev/null")
     machine.succeed("systemctl show edcb -p After | grep mirakurun.service")
     machine.succeed("test -L /var/lib/edcb/lib/BonDriver_LinuxMirakc.so")
   '';

@@ -8,5 +8,6 @@ rec {
   recisdb = pkgs.callPackage ./recisdb { };
   isdb-scanner = pkgs.callPackage ./isdb-scanner { inherit recisdb; };
   edcb = pkgs.callPackage ./edcb { };
+  edcb-material-webui = pkgs.callPackage ./edcb-material-webui { };
   bondriver-linux-mirakc = pkgs.callPackage ./bondriver-linux-mirakc { };
 }
