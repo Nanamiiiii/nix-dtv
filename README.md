@@ -90,8 +90,8 @@ nix run github:Nanamiiiii/nix-dtv#isdb-scanner -- ./scanned
 - Mirakurunはnixpkgs標準モジュールで `mirakurun:video` として動かし、このリポジトリでは最新版パッケージの直接起動とrecisdbのservice `PATH`だけを追加します。DBとlogoは `/var/lib/mirakurun`、ランタイム生成されるtuner/channel設定は `/etc/mirakurun` に置きます。
 - EDCB は `edcb:edcb` で動き、`dtv` group だけを追加します。実行ファイルと `.so` の実体は Nix store、設定と状態は `/var/lib/edcb`、録画だけは指定した recording directory に書き込みます。
 - `EpgTimerSrv.ini`、`Common.ini`、`EpgDataCap_Bon.ini`、`RecName_Macro.so.ini` と BonDriver の `<driver name>.ini` は、対応する設定optionを指定したファイルだけUTF-8（BOMなし）で生成します。BonDriver は `hardware.dtv.bondriver."<driver name>".settings` で指定し、`settings` と `settingsFile` が両方 `null` の場合は既存設定に任せます。`Bitrate.ini` と `BonCtrl.ini` は上流サンプルを初回だけmutableな設定として配置し、既存ファイルは上書きしません。
-- `EpgTimerSrv.ini` をNix管理する場合はloopback限定のTCP接続、KonomiTV向けの `CompatFlags=128`、`TimeSync=0` を補完します。`Common.ini` には録画先を補完します。BonDriverごとのINI設定には値を補完しません。チューナー数や接続先は必要に応じて明示してください。
-- EPG取得時刻、実際のチューナー数、録画マージン、ファイル名、ログ、B25処理などは環境依存です。指定しない項目にはEDCBとBonDriverの上流既定値が使われます。
+- `EpgTimerSrv.ini` をNix管理する場合はloopback限定のTCP接続、KonomiTV向けの `CompatFlags=128`、`TimeSync=0` を補完します。`Common.ini` には録画先を補完します。BonDriverごとのINI設定には値を補完しません。選択したBonDriverには後述のチューナー設定を補完します。接続先や台数の変更は必要に応じて明示してください。
+- EPG取得時刻、録画マージン、ファイル名、ログ、B25処理などは環境依存です。モジュールが補完しない項目にはEDCBとBonDriverの上流既定値が使われます。チューナー数は各BonDriverで1台を初期値とし、実機構成に合わせて変更してください。
 - recisdbは既定でB25処理を行うため、標準構成ではBonDriver側の `DECODE_B25` を設定しません。raw TSを出すチューナーコマンドとMirakurunのdecoderを使う場合だけ明示してください。
 - EDCB の `TimeSync` は `0` のままにし、時刻同期は systemd-timesyncd や chrony に任せてください。
 - KonomiTV は公式 `ghcr.io/tsukumijima/konomitv:latest` image を Docker backend と host network で起動します。upstream image の互換性を優先して container root のままです。
@@ -116,6 +116,23 @@ services.edcb.bondriver = [ "mirakc" "custom" ];
 ```
 
 この例では `BonDriver_LinuxMirakc.so` と `BonDriver_Custom.so`、およびそれぞれの `.ini` を配置します。Linux版EDCBはWindows版の `BonDriver/` ではなくライブラリディレクトリ直下から読み込みます。Mirakcは読み込まれた `.so` に隣接する `.ini` を探しますが、ほかのドライバーの設定ファイル探索先は各実装を確認してください。
+
+`services.edcb.settings` が非 `null` の場合、`services.edcb.bondriver` で選択したドライバーの `driverPath` のbasenameから、`EpgTimerSrv.ini` の `[TVTEST]` とチューナー設定を生成します。`settings = { };` と `bondriver = [ "mirakc" ];` の組み合わせでは、従来の `SET` 補完値に加えて次を生成します。
+
+```ini
+[TVTEST]
+Num=1
+0=BonDriver_LinuxMirakc.so
+[BonDriver_LinuxMirakc.so]
+Count=1
+GetEpg=1
+EPGCount=1
+Priority=0
+```
+
+複数指定した場合は選択順に `TVTEST` の `0`、`1`、… と `Priority=0,1,…` を割り当てます。同じ定義名の重複は最初の1件にまとめます。選択が空なら `TVTEST.Num=0` だけを補完し、ドライバー別セクションは生成しません。`settings = null` の場合は、ドライバーを選択してもINIは管理しません。
+
+`services.edcb.settings` に書いた同じセクション・キーが補完値より優先されます。視聴対象を絞る場合は `TVTEST.Num` と `TVTEST."0"` などを一緒に上書きしてください。`settingsImmutable = false` でも補完値はactivation時のマージ対象となるため、WebUIで変更した台数などは次回の構成適用・OS起動時にNix側の値に戻ります。
 
 実機のチューナー数やEPG取得方針はホスト設定に記述します。たとえば4チューナー中2台をEPG取得に使い、毎日05:15に取得する場合は次のように指定します。
 

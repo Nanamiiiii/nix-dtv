@@ -110,9 +110,10 @@ ISDBScanner は上流sourceをPythonで実行し、次をNix closureに含めて
 - EDCB userはrecording group `dtv` にだけ追加する。
 - recording directory以外へ広いwrite権限を与えない。
 - `EpgTimerSrv.ini`, `Common.ini`, `EpgDataCap_Bon.ini`, `RecName_Macro.so.ini` と `hardware.dtv.bondriver."<driver name>".settings` の設定optionはdefaultを `null` とし、明示された `<driver name>.ini` だけUTF-8（BOMなし）でNixから生成する。未指定ならEDCBが生成したmutable fileを使う。`Bitrate.ini` と `BonCtrl.ini` は上流サンプルを初回だけmutableな設定として配置し、既存ファイルを上書きしない。
-- EpgTimerSrvをNix管理する場合はsystem clock変更を無効にする `TimeSync=0`、loopback限定TCP `4510`、KonomiTV互換用 `CompatFlags=128` を補完する。BonDriver同時利用数はホスト設定で指定する。時刻同期はsystemd-timesyncdやchronyへ任せる。
+- EpgTimerSrvをNix管理する場合はsystem clock変更を無効にする `TimeSync=0`、loopback限定TCP `4510`、KonomiTV互換用 `CompatFlags=128` を補完する。選択したBonDriverには同時利用数1を補完し、ホスト設定で変更できる。時刻同期はsystemd-timesyncdやchronyへ任せる。
 - BonDriverのINI設定にはドライバー別の値を補完しない。BonDriver_LinuxMirakc自体の既定接続先はHTTP `127.0.0.1:40772`。recisdbが既定でB25処理するため `DECODE_B25` は書かず、上流既定値の0を使う。
-- EPG取得時刻、実チューナー数、録画方針、ログなどの環境固有値はmodule defaultに含めず、ホスト設定で指定する。
+- `services.edcb.settings` が非 `null` なら、`services.edcb.bondriver` の選択順（同名の重複は最初だけ）から `[TVTEST]` の `Num` と0始まりの番号キー、および各 `driverPath` のbasenameをセクション名にした `Count=1`, `GetEpg=1`, `EPGCount=1`, `Priority=0,1,…` を補完する。空リストでは `TVTEST.Num=0`、ドライバー別セクションなし。明示した `services.edcb.settings` の同じキーを優先し、`settings = null` は引き続きINIを管理しない。mutableマージでもこれらの補完値はactivation時に適用する。
+- EPG取得時刻、録画方針、ログなどの環境固有値はホスト設定で指定する。チューナー数の初期値1は実機構成に合わせて上書きする。
 - BonDriver_LinuxMirakc upstreamはMirakurun互換性を未テストとしている。warningを消さず、実機で長時間録画を検証する。
 
 ### EDCB Material WebUI

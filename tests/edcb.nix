@@ -111,7 +111,18 @@ pkgs.testers.runNixOSTest {
     machine.succeed("grep -F 'TCPAccessControlList=+127.0.0.1,+::1,+::ffff:127.0.0.1' /var/lib/edcb/EpgTimerSrv.ini")
     machine.succeed("grep -F 'CompatFlags=128' /var/lib/edcb/EpgTimerSrv.ini")
     machine.succeed("grep -F 'TimeSync=0' /var/lib/edcb/EpgTimerSrv.ini")
-    machine.fail("grep -F '[BonDriver_LinuxMirakc.so]' /var/lib/edcb/EpgTimerSrv.ini")
+    import configparser
+
+    class EdcbIni(configparser.ConfigParser):
+        def optionxform(self, optionstr: str) -> str:
+            return optionstr
+
+    ini = EdcbIni()
+    ini.read_string(machine.succeed("cat /var/lib/edcb/EpgTimerSrv.ini"))
+    assert dict(ini["TVTEST"]) == {"Num": "3", "0": "BonDriver_LinuxMirakc.so", "1": "BonDriver_Custom.so", "2": "BonDriver_FileOnly.so"}
+    for index, name in enumerate(["BonDriver_LinuxMirakc.so", "BonDriver_Custom.so", "BonDriver_FileOnly.so"]):
+        assert dict(ini[name]) == {"Count": "1", "GetEpg": "1", "EPGCount": "1", "Priority": str(index)}
+    assert "BonDriver_Unselected.so" not in ini
     machine.succeed("grep -F 'EnableHttpSrv=1' /var/lib/edcb/EpgTimerSrv.ini")
     machine.fail("grep -F '[EPG_CAP]' /var/lib/edcb/EpgTimerSrv.ini")
     machine.fail("grep -F 'SERVER_HOST=' /var/lib/edcb/lib/BonDriver_LinuxMirakc.so.ini")

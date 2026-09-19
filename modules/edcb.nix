@@ -14,16 +14,20 @@ let
     if cfg.settings == null then
       null
     else
-      lib.recursiveUpdate {
-        SET = {
-          EnableHttpSrv = 1;
-          EnableTCPSrv = 1;
-          TCPAccessControlList = "+127.0.0.1,+::1,+::ffff:127.0.0.1";
-          TCPPort = 4510;
-          CompatFlags = 128;
-          TimeSync = 0;
-        };
-      } cfg.settings;
+      lib.recursiveUpdate (
+        tunerSettings
+        // {
+          SET = {
+            EnableHttpSrv = 1;
+            HttpAccessControlList = "+127.0.0.0/8,+10.0.0.0/8,+172.16.0.0/12,+192.168.0.0/16,+169.254.0.0/16,+100.64.0.0/10";
+            EnableTCPSrv = 1;
+            TCPAccessControlList = "+127.0.0.1,+::1,+::ffff:127.0.0.1";
+            TCPPort = 4510;
+            CompatFlags = 128;
+            TimeSync = 0;
+          };
+        }
+      ) cfg.settings;
   commonSettings =
     if cfg.commonSettings == null then
       null
@@ -45,6 +49,28 @@ let
     in
     driver // { fileName = builtins.baseNameOf driver.driverPath; }
   ) (lib.filter (name: builtins.hasAttr name config.hardware.dtv.bondriver) selectedNames);
+  tunerSettings = {
+    TVTEST = {
+      Num = builtins.length selectedDrivers;
+    }
+    // builtins.listToAttrs (
+      lib.imap0 (index: driver: {
+        name = toString index;
+        value = driver.fileName;
+      }) selectedDrivers
+    );
+  }
+  // builtins.listToAttrs (
+    lib.imap0 (index: driver: {
+      name = builtins.unsafeDiscardStringContext driver.fileName;
+      value = {
+        Count = 1;
+        GetEpg = 1;
+        EPGCount = 1;
+        Priority = index;
+      };
+    }) selectedDrivers
+  );
   bonDriverIniFiles = map (driver: {
     name = "${driver.fileName}.ini";
     path = "${runtimeLibDir}/${driver.fileName}.ini";
@@ -185,7 +211,7 @@ in
         };
         "BonDriver_LinuxMirakc.so".Count = 4;
       };
-      description = "Managed EpgTimerSrv.ini settings. Null leaves the file unmanaged; a non-null value also receives the minimal integration defaults.";
+      description = "Managed EpgTimerSrv.ini settings. Null leaves the file unmanaged. A non-null value receives integration defaults and TVTEST/tuner defaults for the selected BonDrivers; explicit settings take precedence.";
     };
 
     commonSettingsImmutable = lib.mkOption {
@@ -248,7 +274,7 @@ in
       type = lib.types.listOf lib.types.str;
       default = [ ];
       example = [ "mirakc" ];
-      description = "Names of BonDrivers to install from hardware.dtv.bondriver.";
+      description = "Names of BonDrivers to install from hardware.dtv.bondriver. When settings is non-null, their binary filenames populate TVTEST and each receives Count=1, GetEpg=1, EPGCount=1 and a zero-based Priority in selection order. Repeated names are included only once. Override these defaults through settings.";
     };
   };
 

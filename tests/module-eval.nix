@@ -84,6 +84,50 @@ let
       }
     ];
   };
+  emptyDrivers = evaluated.extendModules {
+    modules = [ { services.edcb.bondriver = nixpkgs.lib.mkForce [ ]; } ];
+  };
+  reorderedDrivers = evaluated.extendModules {
+    modules = [
+      {
+        services.edcb.bondriver = nixpkgs.lib.mkForce [
+          "custom"
+          "mirakc"
+          "custom"
+        ];
+      }
+    ];
+  };
+  overriddenTuners = evaluated.extendModules {
+    modules = [
+      {
+        services.edcb.settings = {
+          TVTEST = {
+            Num = 1;
+            "0" = "BonDriver_Custom.so";
+          };
+          "BonDriver_LinuxMirakc.so" = {
+            Count = 4;
+            EPGCount = 2;
+            GetEpg = 0;
+            Priority = 7;
+          };
+        };
+      }
+    ];
+  };
+  unmanagedSettings = evaluated.extendModules {
+    modules = [ { services.edcb.settings = nixpkgs.lib.mkForce null; } ];
+  };
+  srvIni =
+    config:
+    nixpkgs.lib.last (
+      nixpkgs.lib.splitString " " (
+        nixpkgs.lib.findFirst (nixpkgs.lib.hasPrefix "L+ /var/lib/edcb/EpgTimerSrv.ini ")
+          (throw "missing EpgTimerSrv.ini link")
+          config.systemd.tmpfiles.rules
+      )
+    );
   konomitvVolumes = cfg.virtualisation.oci-containers.containers.konomitv.volumes;
 in
 assert nixpkgs.lib.any (
@@ -92,6 +136,8 @@ assert nixpkgs.lib.any (
 assert nixpkgs.lib.any (
   a: !a.assertion && nixpkgs.lib.hasInfix "duplicate binary filenames" a.message
 ) duplicateBinary.config.assertions;
+assert
+  !(nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/EpgTimerSrv.ini ") unmanagedSettings.config.systemd.tmpfiles.rules);
 assert cfg.services.edcb.settingsImmutable;
 assert cfg.services.edcb.materialWebUI.enable;
 assert
@@ -180,6 +226,37 @@ assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/lib/BonDriver_Custom
 assert cfg.services.konomitv.settings.general.always_receive_tv_from_mirakurun;
 assert builtins.elem "/mnt/tv/recordings:/host-rootfs/mnt/tv/recordings:ro" konomitvVolumes;
 assert cfg.virtualisation.oci-containers.backend == "docker";
-pkgs.runCommand "nix-dtv-module-eval" { } ''
+pkgs.runCommand "nix-dtv-module-eval" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+  python <<'PYTHON'
+  import configparser
+
+  def read(path):
+      ini = configparser.ConfigParser()
+      ini.optionxform = str
+      ini.read(path)
+      return ini
+
+  ini = read("${srvIni cfg}")
+  assert dict(ini["TVTEST"]) == {"Num": "2", "0": "BonDriver_LinuxMirakc.so", "1": "BonDriver_Custom.so"}
+  for name, priority in [("BonDriver_LinuxMirakc.so", "0"), ("BonDriver_Custom.so", "1")]:
+      assert dict(ini[name]) == {"Count": "1", "GetEpg": "1", "EPGCount": "1", "Priority": priority}
+  assert "BonDriver_Unselected.so" not in ini
+  assert ini["SET"]["SaveLog"] == "1"
+
+  empty = read("${srvIni emptyDrivers.config}")
+  assert dict(empty["TVTEST"]) == {"Num": "0"}
+  assert not any(section.startswith("BonDriver") for section in empty.sections())
+
+  reordered = read("${srvIni reorderedDrivers.config}")
+  assert dict(reordered["TVTEST"]) == {"Num": "2", "0": "BonDriver_Custom.so", "1": "BonDriver_LinuxMirakc.so"}
+  assert reordered["BonDriver_Custom.so"]["Priority"] == "0"
+  assert reordered["BonDriver_LinuxMirakc.so"]["Priority"] == "1"
+
+  overridden = read("${srvIni overriddenTuners.config}")
+  assert overridden["TVTEST"]["Num"] == "1"
+  assert overridden["TVTEST"]["0"] == "BonDriver_Custom.so"
+  assert dict(overridden["BonDriver_LinuxMirakc.so"]) == {"Count": "4", "GetEpg": "0", "EPGCount": "2", "Priority": "7"}
+  assert overridden["BonDriver_Custom.so"]["Count"] == "1"
+  PYTHON
   touch "$out"
 ''

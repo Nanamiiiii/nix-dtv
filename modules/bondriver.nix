@@ -38,5 +38,14 @@
   config.hardware.dtv.bondriver.mirakc = {
     package = lib.mkDefault (pkgs.callPackage ../pkgs/bondriver-linux-mirakc { });
     driverPath = lib.mkDefault "${config.hardware.dtv.bondriver.mirakc.package}/lib/edcb/BonDriver_LinuxMirakc.so";
+    settings = lib.mkDefault {
+      GLOBAL = {
+        SERVER_HOST = "localhost";
+        SERVER_PORT = config.services.mirakurun.port;
+        DECODE_B25 = 0;
+        PRIORITY = 100;
+        SERVICE_SPLIT = 0;
+      };
+    };
   };
 }

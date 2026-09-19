@@ -29,6 +29,16 @@ pkgs.testers.runNixOSTest {
     machine.succeed("curl --fail --silent http://127.0.0.1:40772/api/status >/dev/null")
 
     machine.wait_for_unit("edcb.service")
+    import configparser
+
+    class EdcbIni(configparser.ConfigParser):
+        def optionxform(self, optionstr: str) -> str:
+            return optionstr
+
+    ini = EdcbIni()
+    ini.read_string(machine.succeed("cat /var/lib/edcb/EpgTimerSrv.ini"))
+    assert dict(ini["TVTEST"]) == {"Num": "1", "0": "BonDriver_LinuxMirakc.so"}
+    assert dict(ini["BonDriver_LinuxMirakc.so"]) == {"Count": "1", "GetEpg": "1", "EPGCount": "1", "Priority": "0"}
     machine.wait_for_open_port(4510)
     machine.wait_for_open_port(5510)
     machine.succeed("curl --fail --silent http://127.0.0.1:5510/E3/ -o /tmp/e3.html")
