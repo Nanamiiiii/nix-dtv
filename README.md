@@ -36,7 +36,10 @@ px4_drv に含まれる udev rule は upstream と同じ `root:video`, mode `066
         {
           services.dtv = {
             enable = true;
-            recordingDir = "/mnt/tv/recordings";
+            recordingDir = [
+              "/mnt/tv/recordings"
+              "/mnt/tv/archive"
+            ];
 
             px4_drv.enable = true;
             mirakurun.enable = true;
@@ -83,12 +86,29 @@ nix run github:Nanamiiiii/nix-dtv#isdb-scanner -- ./scanned
 
 出力される Mirakurun の `channels.yml` は recisdb 形式（地上波は `T27`、衛星は `BS01_0` / `CS2` など）です。`tunerSettings` の `recisdb tune ...` と組み合わせて利用してください。`channelSettings` の既定値は `null` なので、生成したチャンネルリストをランタイム設定として配置できます。
 
-`services.dtv.recordingDir` から `dtv` group と setgid directory、KonomiTV の `video.recorded_folders` の1要素と read-only bind mount を導出します。KonomiTVだけで複数の録画先を使う場合は、`services.konomitv.recordingDir` に文字列のリストを指定します。`services.edcb.commonSettings` を指定してNix管理を有効にした場合は、EDCBの `Common.ini` にも録画先を補完します。既存環境でgroup名が競合する場合は `services.dtv.recordingGroup` で変更できます。
+`services.dtv.recordingDir` は録画先の文字列リストで、既定値は `[ "/mnt/tv/recordings" ]` です。`services.dtv` 自身は録画先を作成せず、EDCB の書き込み先と KonomiTV の `video.recorded_folders` へ伝播します。EDCB を有効にした場合は `services.edcb.manageRecordingDirs` に従って `dtv` group と setgid directoryを管理します。`services.edcb.commonSettings` を指定してNix管理を有効にした場合は、指定順に `RecFolderPath0`, `RecFolderPath1`, …を補完します。既存環境でgroup名が競合する場合は `services.dtv.recordingGroup` で変更できます。
+
+NFS など、録画先の作成と権限を外部で管理する場合は `services.edcb.manageRecordingDirs = false` にします。この場合は tmpfiles による録画先の作成と `root:<recordingGroup>`, mode `2770` の適用を行いません。EDCB と KonomiTV への録画先の伝播は維持し、両serviceはすべての録画先に `RequiresMountsFor` を設定するため、必要なmountの後に起動します。NFS Server側では、強制map後のユーザーにEDCBの書き込み権限とKonomiTVの読み取り権限を与えてください。
+
+KonomiTV の capture先をNFSなどで外部管理する場合は `services.konomitv.manageCaptureDirs = false` にします。tmpfilesによる作成と `root:root`, mode `0750` の適用だけを止め、`capture.upload_folders` とread-write mountは維持します。KonomiTV serviceの `RequiresMountsFor` には録画先とcapture先の両方が含まれます。
+
+```nix
+services.dtv = {
+  recordingDir = [ "/mnt/nfs/tv-recordings" ];
+};
+
+services.edcb.manageRecordingDirs = false;
+
+services.konomitv = {
+  captureDir = [ "/mnt/nfs/tv-capture" ];
+  manageCaptureDirs = false;
+};
+```
 
 ## 権限と状態
 
 - Mirakurunはnixpkgs標準モジュールで `mirakurun:video` として動かし、このリポジトリでは最新版パッケージの直接起動とrecisdbのservice `PATH`だけを追加します。DBとlogoは `/var/lib/mirakurun`、ランタイム生成されるtuner/channel設定は `/etc/mirakurun` に置きます。
-- EDCB は `edcb:edcb` で動き、`dtv` group だけを追加します。実行ファイルと `.so` の実体は Nix store、設定と状態は `/var/lib/edcb`、録画だけは指定した recording directory に書き込みます。
+- EDCB は `edcb:edcb` で動き、`dtv` group だけを追加します。実行ファイルと `.so` の実体は Nix store、設定と状態は `/var/lib/edcb`、録画だけは指定した recording directories に書き込みます。
 - `EpgTimerSrv.ini`、`Common.ini`、`EpgDataCap_Bon.ini`、`RecName_Macro.so.ini` と BonDriver の `<driver name>.ini` は、対応する設定optionを指定したファイルだけUTF-8（BOMなし）で生成します。BonDriver は `hardware.dtv.bondriver."<driver name>".settings` で指定し、`settings` と `settingsFile` が両方 `null` の場合は既存設定に任せます。`Bitrate.ini` と `BonCtrl.ini` は上流サンプルを初回だけmutableな設定として配置し、既存ファイルは上書きしません。
 - `EpgTimerSrv.ini` をNix管理する場合はloopback限定のTCP接続、KonomiTV向けの `CompatFlags=128`、`TimeSync=0` を補完します。`Common.ini` には録画先を補完します。BonDriverごとのINI設定には値を補完しません。選択したBonDriverには後述のチューナー設定を補完します。接続先や台数の変更は必要に応じて明示してください。
 - EPG取得時刻、録画マージン、ファイル名、ログ、B25処理などは環境依存です。モジュールが補完しない項目にはEDCBとBonDriverの上流既定値が使われます。チューナー数は各BonDriverで1台を初期値とし、実機構成に合わせて変更してください。

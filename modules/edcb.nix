@@ -34,9 +34,14 @@ let
     else
       lib.recursiveUpdate {
         SET = {
-          RecFolderNum = 1;
-          RecFolderPath0 = cfg.recordingDir;
-        };
+          RecFolderNum = builtins.length cfg.recordingDir;
+        }
+        // builtins.listToAttrs (
+          lib.imap0 (index: path: {
+            name = "RecFolderPath${toString index}";
+            value = path;
+          }) cfg.recordingDir
+        );
       } cfg.commonSettings;
   selectedNames = lib.unique cfg.bondriver;
   missingDrivers = lib.filter (
@@ -182,15 +187,21 @@ in
     };
 
     recordingDir = lib.mkOption {
-      type = lib.types.str;
-      default = "/mnt/tv/recordings";
-      description = "Directory in which EDCB writes recordings.";
+      type = lib.types.listOf lib.types.str;
+      default = [ "/mnt/tv/recordings" ];
+      description = "Directories in which EDCB writes recordings.";
     };
 
     recordingGroup = lib.mkOption {
       type = lib.types.str;
       default = "dtv";
-      description = "Group with write access to the recording directory.";
+      description = "Group with write access to the recording directories.";
+    };
+
+    manageRecordingDirs = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Create the recording directories and enforce root ownership, the recording group, and mode 2770. Disable this for externally managed directories such as NFS shares.";
     };
 
     settingsImmutable = lib.mkOption {
@@ -307,24 +318,27 @@ in
       extraGroups = [ cfg.recordingGroup ];
     };
 
-    systemd.tmpfiles.rules = [
-      "d ${cfg.recordingDir} 2770 root ${cfg.recordingGroup} - -"
-      "d ${runtimeLibDir} 0750 edcb edcb - -"
-      "C /var/lib/edcb/Bitrate.ini 0640 edcb edcb - ${cfg.package}/share/edcb/initial-state/Bitrate.ini"
-      "C /var/lib/edcb/BonCtrl.ini 0640 edcb edcb - ${cfg.package}/share/edcb/initial-state/BonCtrl.ini"
-      "C /var/lib/edcb/ContentTypeText.txt 0640 edcb edcb - ${cfg.package}/share/edcb/initial-state/ContentTypeText.txt"
-      "C /var/lib/edcb/HttpPublic - edcb edcb - ${cfg.package}/share/edcb/initial-state/HttpPublic"
-    ]
-    ++ lib.optionals cfg.materialWebUI.enable [
-      "d /var/lib/edcb/Setting 0750 edcb edcb - -"
-      "L+ /var/lib/edcb/HttpPublic/E3 - - - - ${webUIRoot}/HttpPublic/E3"
-      "L+ /var/lib/edcb/HttpPublic/api - - - - ${webUIRoot}/HttpPublic/api"
-      "C /var/lib/edcb/Setting/HttpPublic.ini 0640 edcb edcb - ${webUIRoot}/Setting/HttpPublic.ini"
-      "C /var/lib/edcb/Setting/XCODE_OPTIONS.lua 0640 edcb edcb - ${webUIRoot}/Setting/XCODE_OPTIONS.lua"
-    ]
-    ++ bonDriverLibraryLinks
-    ++ map (file: "L+ ${file.path} - - - - ${file.source}") linkedIniFiles
-    ++ map (name: "L+ ${runtimeLibDir}/${name} - - - - ${cfg.package}/lib/edcb/${name}") edcbLibraries;
+    systemd.tmpfiles.rules =
+      lib.optionals cfg.manageRecordingDirs (
+        map (path: "d ${path} 2770 root ${cfg.recordingGroup} - -") cfg.recordingDir
+      )
+      ++ [
+        "d ${runtimeLibDir} 0750 edcb edcb - -"
+        "C /var/lib/edcb/Bitrate.ini 0640 edcb edcb - ${cfg.package}/share/edcb/initial-state/Bitrate.ini"
+        "C /var/lib/edcb/BonCtrl.ini 0640 edcb edcb - ${cfg.package}/share/edcb/initial-state/BonCtrl.ini"
+        "C /var/lib/edcb/ContentTypeText.txt 0640 edcb edcb - ${cfg.package}/share/edcb/initial-state/ContentTypeText.txt"
+        "C /var/lib/edcb/HttpPublic - edcb edcb - ${cfg.package}/share/edcb/initial-state/HttpPublic"
+      ]
+      ++ lib.optionals cfg.materialWebUI.enable [
+        "d /var/lib/edcb/Setting 0750 edcb edcb - -"
+        "L+ /var/lib/edcb/HttpPublic/E3 - - - - ${webUIRoot}/HttpPublic/E3"
+        "L+ /var/lib/edcb/HttpPublic/api - - - - ${webUIRoot}/HttpPublic/api"
+        "C /var/lib/edcb/Setting/HttpPublic.ini 0640 edcb edcb - ${webUIRoot}/Setting/HttpPublic.ini"
+        "C /var/lib/edcb/Setting/XCODE_OPTIONS.lua 0640 edcb edcb - ${webUIRoot}/Setting/XCODE_OPTIONS.lua"
+      ]
+      ++ bonDriverLibraryLinks
+      ++ map (file: "L+ ${file.path} - - - - ${file.source}") linkedIniFiles
+      ++ map (name: "L+ ${runtimeLibDir}/${name} - - - - ${cfg.package}/lib/edcb/${name}") edcbLibraries;
 
     # When both INI sources are null, remove only its store link.
     # Mutable files are deliberately preserved.
@@ -371,6 +385,7 @@ in
     systemd.services.edcb = {
       description = "EDCB EpgTimerSrv";
       wantedBy = [ "multi-user.target" ];
+      unitConfig.RequiresMountsFor = cfg.recordingDir;
       after = [
         "network.target"
         "mirakurun.service"
@@ -396,10 +411,7 @@ in
         ProtectHome = true;
         ProtectSystem = "strict";
         ProtectClock = true;
-        ReadWritePaths = [
-          "/var/lib/edcb"
-          cfg.recordingDir
-        ];
+        ReadWritePaths = [ "/var/lib/edcb" ] ++ cfg.recordingDir;
       };
     };
 

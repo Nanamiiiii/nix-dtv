@@ -47,7 +47,7 @@ in
     recordingDir = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ "/mnt/tv/recordings" ];
-      description = "Host recording directory, mounted read-only.";
+      description = "Host recording directories, mounted read-only.";
     };
 
     dataDir = lib.mkOption {
@@ -66,6 +66,12 @@ in
       type = lib.types.listOf lib.types.str;
       default = [ "/var/lib/konomitv/capture" ];
       description = "Writable capture upload directory.";
+    };
+
+    manageCaptureDirs = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Create the capture directories and enforce root ownership and mode 0750. Disable this for externally managed directories such as NFS shares.";
     };
 
     devices = lib.mkOption {
@@ -157,9 +163,10 @@ in
       "d ${cfg.dataDir} 0750 root root - -"
       "d ${cfg.logDir} 0750 root root - -"
     ]
-    ++ map (path: "d ${path} 0750 root root - -") cfg.captureDir;
+    ++ lib.optionals cfg.manageCaptureDirs (map (path: "d ${path} 0750 root root - -") cfg.captureDir);
 
     systemd.services.docker-konomitv = {
+      unitConfig.RequiresMountsFor = lib.unique (cfg.recordingDir ++ cfg.captureDir);
       after = [
         "edcb.service"
         "mirakurun.service"

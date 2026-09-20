@@ -19,9 +19,9 @@ in
     enable = lib.mkEnableOption "the integrated Japanese DTV stack";
 
     recordingDir = lib.mkOption {
-      type = lib.types.str;
-      default = "/mnt/tv/recordings";
-      description = "Shared recording directory.";
+      type = lib.types.listOf lib.types.str;
+      default = [ "/mnt/tv/recordings" ];
+      description = "Shared recording directories.";
     };
 
     recordingGroup = lib.mkOption {
@@ -37,11 +37,6 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    users.groups.${cfg.recordingGroup} = { };
-    systemd.tmpfiles.rules = [
-      "d ${cfg.recordingDir} 2770 root ${cfg.recordingGroup} - -"
-    ];
-
     hardware.dtv.px4_drv.enable = lib.mkDefault cfg.px4_drv.enable;
     services.mirakurun.enable = lib.mkDefault cfg.mirakurun.enable;
     services.edcb = {
@@ -52,7 +47,7 @@ in
     };
     services.konomitv = {
       enable = lib.mkDefault cfg.konomitv.enable;
-      recordingDir = lib.mkDefault [ cfg.recordingDir ];
+      recordingDir = lib.mkDefault cfg.recordingDir;
     };
   };
 }

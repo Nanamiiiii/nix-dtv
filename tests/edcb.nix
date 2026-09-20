@@ -72,7 +72,10 @@ pkgs.testers.runNixOSTest {
         "custom"
         "fileOnly"
       ];
-      recordingDir = "/mnt/tv/recordings";
+      recordingDir = [
+        "/mnt/tv/recordings"
+        "/srv/tv/archive"
+      ];
       settingsImmutable = false;
       settings = {
         SET.SaveLog = 1;
@@ -92,6 +95,7 @@ pkgs.testers.runNixOSTest {
     machine.wait_for_unit("edcb.service")
     machine.succeed("test $(stat -c %U /var/lib/edcb) = edcb")
     machine.succeed("test $(stat -c %a /mnt/tv/recordings) = 2770")
+    machine.succeed("test $(stat -c %a /srv/tv/archive) = 2770")
     machine.succeed("test -f /var/lib/edcb/Bitrate.ini")
     machine.succeed("test -f /var/lib/edcb/BonCtrl.ini")
     machine.succeed("test $(readlink -f /var/lib/edcb/HttpPublic/E3) = ${fakeWebUI}/share/edcb-material-webui/HttpPublic/E3")
@@ -106,7 +110,9 @@ pkgs.testers.runNixOSTest {
     machine.fail("test -e /var/lib/edcb/lib/BonDriver_Unselected.so.ini")
     machine.succeed("test $(readlink -f /var/lib/edcb/lib/BonDriver_LinuxMirakc.so) = ${fakeBonDriver}/lib/edcb/BonDriver_LinuxMirakc.so")
     machine.succeed("test $(readlink -f /var/lib/edcb/lib/BonDriver_Custom.so) = ${fakeCustomBonDriver}/other/BonDriver_Custom.so")
+    machine.succeed("grep -F 'RecFolderNum=2' /var/lib/edcb/Common.ini")
     machine.succeed("grep -F 'RecFolderPath0=/mnt/tv/recordings' /var/lib/edcb/Common.ini")
+    machine.succeed("grep -F 'RecFolderPath1=/srv/tv/archive' /var/lib/edcb/Common.ini")
     machine.succeed("grep -F 'EnableTCPSrv=1' /var/lib/edcb/EpgTimerSrv.ini")
     machine.succeed("grep -F 'TCPAccessControlList=+127.0.0.1,+::1,+::ffff:127.0.0.1' /var/lib/edcb/EpgTimerSrv.ini")
     machine.succeed("grep -F 'CompatFlags=128' /var/lib/edcb/EpgTimerSrv.ini")
@@ -177,7 +183,9 @@ pkgs.testers.runNixOSTest {
     machine.succeed("systemctl start edcb")
     machine.succeed("test ! -L /var/lib/edcb/Common.ini")
     machine.succeed("grep -Fx Previous=retained /var/lib/edcb/Common.ini")
+    machine.succeed("grep -Fx RecFolderNum=2 /var/lib/edcb/Common.ini")
     machine.succeed("grep -Fx RecFolderPath0=/mnt/tv/recordings /var/lib/edcb/Common.ini")
+    machine.succeed("grep -Fx RecFolderPath1=/srv/tv/archive /var/lib/edcb/Common.ini")
 
   '';
 }

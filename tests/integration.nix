@@ -11,7 +11,7 @@ pkgs.testers.runNixOSTest {
 
     services.dtv = {
       enable = true;
-      recordingDir = "/mnt/tv/recordings";
+      recordingDir = [ "/mnt/tv/recordings" ];
       mirakurun.enable = true;
       edcb.enable = true;
     };

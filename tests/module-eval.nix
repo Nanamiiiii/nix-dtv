@@ -14,7 +14,10 @@ let
         boot.kernelPackages = pkgs.linuxPackages;
         services.dtv = {
           enable = true;
-          recordingDir = "/mnt/tv/recordings";
+          recordingDir = [
+            "/mnt/tv/recordings"
+            "/srv/tv/archive"
+          ];
           px4_drv.enable = true;
           mirakurun.enable = true;
           edcb.enable = true;
@@ -42,10 +45,6 @@ let
         hardware.dtv.bondriver.custom.settings.GLOBAL.PRIORITY = 7;
         hardware.dtv.bondriver.custom.settingsFile = customSettingsFile;
         services.konomitv = {
-          recordingDir = [
-            "/mnt/tv/recordings"
-            "/srv/tv/archive"
-          ];
           captureDir = [
             "/var/lib/konomitv/capture"
             "/srv/tv/capture"
@@ -140,6 +139,15 @@ let
   unmanagedSettings = evaluated.extendModules {
     modules = [ { services.edcb.settings = nixpkgs.lib.mkForce null; } ];
   };
+  externallyManagedRecordingDirs = evaluated.extendModules {
+    modules = [ { services.edcb.manageRecordingDirs = nixpkgs.lib.mkForce false; } ];
+  };
+  externallyManagedCaptureDirs = evaluated.extendModules {
+    modules = [ { services.konomitv.manageCaptureDirs = nixpkgs.lib.mkForce false; } ];
+  };
+  dtvWithoutEdcb = evaluated.extendModules {
+    modules = [ { services.dtv.edcb.enable = nixpkgs.lib.mkForce false; } ];
+  };
   ffmpegEncoder = evaluated.extendModules {
     modules = [ { services.konomitv.encoder = nixpkgs.lib.mkForce "FFmpeg"; } ];
   };
@@ -223,7 +231,11 @@ assert builtins.elem cfg.hardware.dtv.px4_drv.package cfg.boot.extraModulePackag
 assert builtins.elem cfg.hardware.dtv.px4_drv.package cfg.services.udev.packages;
 assert
   !(nixpkgs.lib.any (nixpkgs.lib.hasInfix "BonDriver_Unselected.so") cfg.systemd.tmpfiles.rules);
-assert cfg.services.edcb.recordingDir == "/mnt/tv/recordings";
+assert
+  cfg.services.edcb.recordingDir == [
+    "/mnt/tv/recordings"
+    "/srv/tv/archive"
+  ];
 assert
   cfg.services.konomitv.recordingDir == [
     "/mnt/tv/recordings"
@@ -241,6 +253,53 @@ assert builtins.length cfg.services.mirakurun.tunerCommandPackages == 1;
 assert builtins.elem (builtins.head cfg.services.mirakurun.tunerCommandPackages)
   cfg.systemd.services.mirakurun.path;
 assert builtins.elem "dtv" cfg.users.users.edcb.extraGroups;
+assert builtins.elem "/mnt/tv/recordings" cfg.systemd.services.edcb.serviceConfig.ReadWritePaths;
+assert builtins.elem "/srv/tv/archive" cfg.systemd.services.edcb.serviceConfig.ReadWritePaths;
+assert cfg.systemd.services.edcb.unitConfig.RequiresMountsFor == cfg.services.edcb.recordingDir;
+assert
+  cfg.systemd.services.docker-konomitv.unitConfig.RequiresMountsFor
+  == nixpkgs.lib.unique (cfg.services.konomitv.recordingDir ++ cfg.services.konomitv.captureDir);
+assert nixpkgs.lib.any (nixpkgs.lib.hasPrefix "d /mnt/tv/recordings 2770 root dtv ")
+  cfg.systemd.tmpfiles.rules;
+assert nixpkgs.lib.any (nixpkgs.lib.hasPrefix "d /srv/tv/archive 2770 root dtv ")
+  cfg.systemd.tmpfiles.rules;
+assert !dtvWithoutEdcb.config.services.edcb.enable;
+assert !(dtvWithoutEdcb.config.users.groups ? dtv);
+assert
+  !(nixpkgs.lib.any (
+    rule:
+    nixpkgs.lib.hasPrefix "d /mnt/tv/recordings 2770 root dtv " rule
+    || nixpkgs.lib.hasPrefix "d /srv/tv/archive 2770 root dtv " rule
+  ) dtvWithoutEdcb.config.systemd.tmpfiles.rules);
+assert !externallyManagedRecordingDirs.config.services.edcb.manageRecordingDirs;
+assert
+  !(nixpkgs.lib.any (
+    rule:
+    nixpkgs.lib.hasPrefix "d /mnt/tv/recordings 2770 root dtv " rule
+    || nixpkgs.lib.hasPrefix "d /srv/tv/archive 2770 root dtv " rule
+  ) externallyManagedRecordingDirs.config.systemd.tmpfiles.rules);
+assert
+  externallyManagedRecordingDirs.config.systemd.services.edcb.unitConfig.RequiresMountsFor
+  == externallyManagedRecordingDirs.config.services.edcb.recordingDir;
+assert
+  externallyManagedRecordingDirs.config.systemd.services.docker-konomitv.unitConfig.RequiresMountsFor
+  == nixpkgs.lib.unique (
+    externallyManagedRecordingDirs.config.services.konomitv.recordingDir
+    ++ externallyManagedRecordingDirs.config.services.konomitv.captureDir
+  );
+assert !externallyManagedCaptureDirs.config.services.konomitv.manageCaptureDirs;
+assert
+  !(nixpkgs.lib.any (
+    rule:
+    nixpkgs.lib.hasPrefix "d /var/lib/konomitv/capture 0750 root root " rule
+    || nixpkgs.lib.hasPrefix "d /srv/tv/capture 0750 root root " rule
+  ) externallyManagedCaptureDirs.config.systemd.tmpfiles.rules);
+assert
+  externallyManagedCaptureDirs.config.systemd.services.docker-konomitv.unitConfig.RequiresMountsFor
+  == nixpkgs.lib.unique (
+    externallyManagedCaptureDirs.config.services.konomitv.recordingDir
+    ++ externallyManagedCaptureDirs.config.services.konomitv.captureDir
+  );
 assert cfg.services.edcb.settings.SET.SaveLog == 1;
 assert !(cfg.services.edcb.settings.SET ? EnableTCPSrv);
 assert !(cfg.services.edcb.settings ? EPG_CAP);

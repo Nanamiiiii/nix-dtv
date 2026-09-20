@@ -15,7 +15,7 @@ physical tuner
   -> Mirakurun (mirakurun user, video supplementary group)
   -> BonDriver_LinuxMirakc.so over localhost HTTP
   -> EDCB / EpgTimerSrv (edcb user)
-  -> recording directory (RW, dtv group, setgid)
+  -> recording directories (RW, dtv group, setgid)
   -> KonomiTV official OCI image (recordings are RO)
 ```
 
@@ -80,9 +80,9 @@ ISDBScanner は上流sourceをPythonで実行し、次をNix closureに含めて
 
 ### services.dtv
 
-- `services.dtv.recordingDir` のdefaultは `/mnt/tv/recordings`。
+- `services.dtv.recordingDir` は文字列リストで、defaultは `[ "/mnt/tv/recordings" ]`。
 - `services.dtv.recordingGroup` のdefaultは短い `dtv`。以前の案にあった `tv-recordings` は使わない。
-- recording directory は `root:dtv`, mode `2770` で作る。group名を変更した場合も同じ値をEDCBへ伝播する。
+- recording directoryの作成と権限管理は行わず、`recordingDir` と `recordingGroup` をEDCBへ伝播する。
 - `services.dtv.{px4_drv,mirakurun,edcb,konomitv}.enable` から個別moduleを有効化する。
 
 ### px4_drv
@@ -108,11 +108,14 @@ ISDBScanner は上流sourceをPythonで実行し、次をNix closureに含めて
 - immutable binaryと`.so`はNix store、mutable settings/stateは `/var/lib/edcb`。BonDriverは `hardware.dtv.bondriver.<name>` の `package`、実バイナリへの絶対パス `driverPath`、`settings`、`settingsFile` で定義する。`settingsFile` は既定値 `null`。指定されたファイルへのリンクをEDCB側で配置し、`settings` より優先する。両方 `null` ならINIは管理しない。`mirakc` は同梱ドライバーの定義。EDCBは `services.edcb.bondriver` の文字列リストで選択された定義だけを配置する。本体は `driverPath` のbasenameで `/var/lib/edcb/lib` にリンクし、INIは隣に `<basename>.ini` として配置する。未定義の名前と選択ドライバーのbasename重複を検出する。
 - `services.edcb.bondriver` の既定値は空リスト。`services.dtv` の標準構成では `[ "mirakc" ]` を選択する。
 - EDCB userはrecording group `dtv` にだけ追加する。
-- recording directory以外へ広いwrite権限を与えない。
+- recording directories以外へ広いwrite権限を与えない。
 - `EpgTimerSrv.ini`, `Common.ini`, `EpgDataCap_Bon.ini`, `RecName_Macro.so.ini` と `hardware.dtv.bondriver."<driver name>".settings` の設定optionはdefaultを `null` とし、明示された `<driver name>.ini` だけUTF-8（BOMなし）でNixから生成する。未指定ならEDCBが生成したmutable fileを使う。`Bitrate.ini` と `BonCtrl.ini` は上流サンプルを初回だけmutableな設定として配置し、既存ファイルを上書きしない。
 - EpgTimerSrvをNix管理する場合はsystem clock変更を無効にする `TimeSync=0`、loopback限定TCP `4510`、KonomiTV互換用 `CompatFlags=128` を補完する。選択したBonDriverには同時利用数1を補完し、ホスト設定で変更できる。時刻同期はsystemd-timesyncdやchronyへ任せる。
 - BonDriverのINI設定にはドライバー別の値を補完しない。BonDriver_LinuxMirakc自体の既定接続先はHTTP `127.0.0.1:40772`。recisdbが既定でB25処理するため `DECODE_B25` は書かず、上流既定値の0を使う。
 - `services.edcb.settings` が非 `null` なら、`services.edcb.bondriver` の選択順（同名の重複は最初だけ）から `[TVTEST]` の `Num` と0始まりの番号キー、および各 `driverPath` のbasenameをセクション名にした `Count=1`, `GetEpg=1`, `EPGCount=1`, `Priority=0,1,…` を補完する。空リストでは `TVTEST.Num=0`、ドライバー別セクションなし。明示した `services.edcb.settings` の同じキーを優先し、`settings = null` は引き続きINIを管理しない。mutableマージでもこれらの補完値はactivation時に適用する。
+- `services.edcb.recordingDir` は文字列リスト。全directoryを `root:dtv`, mode `2770` で作成し、EDCBの `ReadWritePaths` に追加する。`commonSettings` が非 `null` なら指定順に `RecFolderPath0`, `RecFolderPath1`, …と `RecFolderNum` を補完する。
+- `services.edcb.manageRecordingDirs` のdefaultは `true`。`false` では録画先のtmpfiles ruleだけを生成しない。`ReadWritePaths`、`Common.ini`、`RequiresMountsFor` には引き続き全録画先を設定する。
+- EDCBとKonomiTVのserviceはすべての録画先を `RequiresMountsFor` に指定し、NFS mountなどの完了後に起動する。
 - EPG取得時刻、録画方針、ログなどの環境固有値はホスト設定で指定する。チューナー数の初期値1は実機構成に合わせて上書きする。
 - BonDriver_LinuxMirakc upstreamはMirakurun互換性を未テストとしている。warningを消さず、実機で長時間録画を検証する。
 
@@ -132,8 +135,10 @@ ISDBScanner は上流sourceをPythonで実行し、次をNix closureに含めて
 - `config.yaml` はNixから生成してread-only mountし、Web UIでのserver config変更をsource of truthにしない。
 - `backend`、`streamFromMirakurun`、`edcbUrl`、`mirakurunUrl`、`encoder`、`serverPort` と各directory optionから `config.yaml` の主要項目を生成する。`extraSettings` はその他の項目を追加し、専用optionと同じキーでは専用optionを優先する。
 - `recordingDir` と `captureDir` は文字列リスト。録画directoryはすべてread-only mountし、capture directoryはすべてread-write mountする。data/logsもread-write mountする。
+- `services.konomitv.manageCaptureDirs` のdefaultは `true`。`false` ではcapture先のtmpfiles ruleだけを生成せず、`capture.upload_folders` とread-write mountは維持する。
 - `encoder = "QSVEncC"` または `"VCEEncC"` では `/dev/dri/` をcontainerへ渡す。`"NVEncC"` では全NVIDIA GPUを `compute,utility,video` capability付きで渡し、`hardware.nvidia-container-toolkit.enable` を既定で有効にする。`"FFmpeg"` ではGPUを自動追加しない。`devices` は追加device用。
-- `services.dtv.recordingDir` はKonomiTVの `recordingDir` に1要素のリストとして伝播する。
+- `services.dtv.recordingDir` はKonomiTVの `recordingDir` にそのまま伝播する。
+- KonomiTV serviceは `recordingDir` と `captureDir` の全pathを `RequiresMountsFor` に指定する。
 - upstream imageとの互換性を優先し、containerは現在rootで実行する。
 
 ## 既存Docker版Mirakurun設定との互換性
@@ -201,7 +206,7 @@ VMでは代替できないため、実機で次を確認する必要がありま
 - recisdbはunstable方針、ISDBScannerはlatest release方針を維持する。
 - packageとmutable stateを混在させない。
 - serviceをroot実行へ戻さない。例外は現在の公式KonomiTV containerだけ。
-- recording directory以外のwrite範囲を安易に広げない。
+- recording directories以外のwrite範囲を安易に広げない。
 - public optionやdefaultを変更したらmodule-eval testとREADMEも更新する。
 - packageを追加・更新したら`tests/default.nix`のflake check対象に含める。
 - hardwareがなくてもpackage build、module evaluation、VM testまでは必ず実行する。
