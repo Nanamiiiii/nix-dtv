@@ -2,6 +2,8 @@
   fetchFromGitHub,
   lib,
   lua5_2,
+  openssl,
+  patchelf,
   stdenv,
 }:
 
@@ -16,7 +18,12 @@ stdenv.mkDerivation {
     hash = "sha256-XoPyWJA+LknTJpdQSdhICyHV/P1p+E2NhAfHLr/ghhs=";
   };
 
-  buildInputs = [ lua5_2 ];
+  buildInputs = [
+    lua5_2
+    openssl
+  ];
+
+  nativeBuildInputs = [ patchelf ];
 
   postPatch = ''
     substituteInPlace Common/PathUtil.h \
@@ -59,6 +66,12 @@ stdenv.mkDerivation {
     cp -r ini/HttpPublic/. "$out/share/edcb/initial-state/HttpPublic/"
 
     runHook postInstall
+  '';
+
+  # CivetWeb opens libssl.so.3 and libcrypto.so.3 with dlopen(), so the
+  # standard fixup removes their unused linker rpath. Add it afterwards.
+  postFixup = ''
+    patchelf --add-rpath ${lib.getLib openssl}/lib "$out/bin/EpgTimerSrv"
   '';
 
   meta = {

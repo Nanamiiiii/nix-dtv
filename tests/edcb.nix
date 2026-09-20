@@ -20,8 +20,8 @@ let
     echo 'XCODE_OPTIONS={}' > "$out/share/edcb-material-webui/Setting/XCODE_OPTIONS.lua"
   '';
   fakeBonDriver = pkgs.runCommand "fake-bondriver" { } ''
-    mkdir -p "$out/lib/edcb"
-    touch "$out/lib/edcb/BonDriver_LinuxMirakc.so"
+    mkdir -p "$out/lib"
+    touch "$out/lib/BonDriver_LinuxMirakc.so"
   '';
   fakeCustomBonDriver = pkgs.runCommand "fake-custom-bondriver" { } ''
     mkdir -p "$out/other"
@@ -37,49 +37,50 @@ pkgs.testers.runNixOSTest {
   name = "edcb-module";
   nodes.machine = {
     imports = [ self.nixosModules.edcb ];
-    hardware.dtv.bondriver = {
-      mirakc = {
-        package = fakeBonDriver;
-        settings.GLOBAL.PRIORITY = 5;
-      };
-      custom = {
-        package = fakeCustomBonDriver;
-        driverPath = "${fakeCustomBonDriver}/other/BonDriver_Custom.so";
-        settings.GLOBAL.PRIORITY = 7;
-        settingsFile = customSettingsFile;
-      };
-      fileOnly = {
-        package = fakeCustomBonDriver;
-        driverPath = "${fakeCustomBonDriver}/other/BonDriver_FileOnly.so";
-        settingsFile = customSettingsFile;
-      };
-      unselected = {
-        package = fakeCustomBonDriver;
-        driverPath = "${fakeCustomBonDriver}/other/BonDriver_Unselected.so";
-        settings.GLOBAL.PRIORITY = 9;
-        settingsFile = customSettingsFile;
-      };
-    };
     services.edcb = {
       enable = true;
       package = fakeEdcb;
       materialWebUI = {
         enable = true;
         package = fakeWebUI;
+        extraCertificateSubjectAltNames = [ "DNS:tv.example.com" ];
       };
       bondriver = [
-        "mirakc"
-        "custom"
-        "fileOnly"
+        {
+          package = fakeBonDriver;
+          driverPath = "${fakeBonDriver}/lib/BonDriver_LinuxMirakc.so";
+          settings.GLOBAL.PRIORITY = 5;
+          tunerSettings = {
+            Count = 4;
+            GetEpg = 1;
+            EPGCount = 2;
+          };
+        }
+        {
+          package = fakeCustomBonDriver;
+          driverPath = "${fakeCustomBonDriver}/other/BonDriver_Custom.so";
+          settings.GLOBAL.PRIORITY = 7;
+          settingsFile = customSettingsFile;
+          tunerSettings.Count = 2;
+        }
+        {
+          package = fakeCustomBonDriver;
+          driverPath = "${fakeCustomBonDriver}/other/BonDriver_Custom.so";
+          name = "BonDriver_Custom_2.so";
+          settings.GLOBAL.PRIORITY = 8;
+          tunerSettings.Count = 3;
+        }
+        {
+          package = fakeCustomBonDriver;
+          driverPath = "${fakeCustomBonDriver}/other/BonDriver_FileOnly.so";
+          settingsFile = customSettingsFile;
+        }
       ];
       recordingDir = [
         "/mnt/tv/recordings"
         "/srv/tv/archive"
       ];
       settingsImmutable = false;
-      settings = {
-        SET.SaveLog = 1;
-      };
       commonSettingsImmutable = false;
       commonSettings = { };
       epgDataCapBonSettingsImmutable = false;
@@ -104,17 +105,26 @@ pkgs.testers.runNixOSTest {
     machine.succeed("test ! -L /var/lib/edcb/Setting/XCODE_OPTIONS.lua")
     machine.succeed("test $(stat -c %a /var/lib/edcb/Setting/HttpPublic.ini) = 640")
     machine.succeed("test $(stat -c %U /var/lib/edcb/Setting/XCODE_OPTIONS.lua) = edcb")
+    machine.succeed("test $(stat -c %a /var/lib/edcb/ssl_cert.pem) = 600")
+    machine.succeed("test $(stat -c %U /var/lib/edcb/ssl_cert.pem) = edcb")
+    machine.succeed("${pkgs.openssl}/bin/openssl x509 -in /var/lib/edcb/ssl_cert.pem -noout -checkend 86400")
+    machine.succeed("${pkgs.openssl}/bin/openssl x509 -in /var/lib/edcb/ssl_cert.pem -noout -ext subjectAltName | grep -F 'DNS:localhost'")
+    machine.succeed("${pkgs.openssl}/bin/openssl x509 -in /var/lib/edcb/ssl_cert.pem -noout -ext subjectAltName | grep -F 'DNS:tv.example.com'")
+    certificate_hash = machine.succeed("sha256sum /var/lib/edcb/ssl_cert.pem")
     machine.succeed("test -L /var/lib/edcb/lib/BonDriver_LinuxMirakc.so")
     machine.succeed("test -L /var/lib/edcb/lib/BonDriver_Custom.so")
+    machine.succeed("test -L /var/lib/edcb/lib/BonDriver_Custom_2.so")
+    machine.succeed("test -L /var/lib/edcb/lib/BonDriver_Custom_2.so.ini")
     machine.fail("test -e /var/lib/edcb/lib/BonDriver_Unselected.so")
     machine.fail("test -e /var/lib/edcb/lib/BonDriver_Unselected.so.ini")
-    machine.succeed("test $(readlink -f /var/lib/edcb/lib/BonDriver_LinuxMirakc.so) = ${fakeBonDriver}/lib/edcb/BonDriver_LinuxMirakc.so")
+    machine.succeed("test $(readlink -f /var/lib/edcb/lib/BonDriver_LinuxMirakc.so) = ${fakeBonDriver}/lib/BonDriver_LinuxMirakc.so")
     machine.succeed("test $(readlink -f /var/lib/edcb/lib/BonDriver_Custom.so) = ${fakeCustomBonDriver}/other/BonDriver_Custom.so")
+    machine.succeed("test $(readlink -f /var/lib/edcb/lib/BonDriver_Custom_2.so) = ${fakeCustomBonDriver}/other/BonDriver_Custom.so")
     machine.succeed("grep -F 'RecFolderNum=2' /var/lib/edcb/Common.ini")
     machine.succeed("grep -F 'RecFolderPath0=/mnt/tv/recordings' /var/lib/edcb/Common.ini")
     machine.succeed("grep -F 'RecFolderPath1=/srv/tv/archive' /var/lib/edcb/Common.ini")
     machine.succeed("grep -F 'EnableTCPSrv=1' /var/lib/edcb/EpgTimerSrv.ini")
-    machine.succeed("grep -F 'TCPAccessControlList=+127.0.0.1,+::1,+::ffff:127.0.0.1' /var/lib/edcb/EpgTimerSrv.ini")
+    machine.succeed("grep -F 'TCPAccessControlList=+127.0.0.0/8,+10.0.0.0/8,+172.16.0.0/12,+192.168.0.0/16,+169.254.0.0/16,+100.64.0.0/10' /var/lib/edcb/EpgTimerSrv.ini")
     machine.succeed("grep -F 'CompatFlags=128' /var/lib/edcb/EpgTimerSrv.ini")
     machine.succeed("grep -F 'TimeSync=0' /var/lib/edcb/EpgTimerSrv.ini")
     import configparser
@@ -125,11 +135,14 @@ pkgs.testers.runNixOSTest {
 
     ini = EdcbIni()
     ini.read_string(machine.succeed("cat /var/lib/edcb/EpgTimerSrv.ini"))
-    assert dict(ini["TVTEST"]) == {"Num": "3", "0": "BonDriver_LinuxMirakc.so", "1": "BonDriver_Custom.so", "2": "BonDriver_FileOnly.so"}
-    for index, name in enumerate(["BonDriver_LinuxMirakc.so", "BonDriver_Custom.so", "BonDriver_FileOnly.so"]):
-        assert dict(ini[name]) == {"Count": "1", "GetEpg": "1", "EPGCount": "1", "Priority": str(index)}
+    assert dict(ini["TVTEST"]) == {"Num": "4", "0": "BonDriver_LinuxMirakc.so", "1": "BonDriver_Custom.so", "2": "BonDriver_Custom_2.so", "3": "BonDriver_FileOnly.so"}
+    assert dict(ini["BonDriver_LinuxMirakc.so"]) == {"Count": "4", "GetEpg": "1", "EPGCount": "2"}
+    assert dict(ini["BonDriver_Custom.so"]) == {"Count": "2"}
+    assert dict(ini["BonDriver_Custom_2.so"]) == {"Count": "3"}
+    assert "BonDriver_FileOnly.so" not in ini
     assert "BonDriver_Unselected.so" not in ini
     machine.succeed("grep -F 'EnableHttpSrv=1' /var/lib/edcb/EpgTimerSrv.ini")
+    machine.succeed("grep -F 'HttpPort=5510,5511s,5520,5521s' /var/lib/edcb/EpgTimerSrv.ini")
     machine.fail("grep -F '[EPG_CAP]' /var/lib/edcb/EpgTimerSrv.ini")
     machine.fail("grep -F 'SERVER_HOST=' /var/lib/edcb/lib/BonDriver_LinuxMirakc.so.ini")
     machine.fail("grep -F 'SERVER_PORT=' /var/lib/edcb/lib/BonDriver_LinuxMirakc.so.ini")
@@ -137,6 +150,7 @@ pkgs.testers.runNixOSTest {
     machine.succeed("grep -F 'PRIORITY=5' /var/lib/edcb/lib/BonDriver_LinuxMirakc.so.ini")
     machine.succeed("test $(readlink /var/lib/edcb/lib/BonDriver_Custom.so.ini) = ${customSettingsFile}")
     machine.succeed("cmp /var/lib/edcb/lib/BonDriver_Custom.so.ini ${customSettingsFile}")
+    machine.succeed("grep -F 'PRIORITY=8' /var/lib/edcb/lib/BonDriver_Custom_2.so.ini")
     machine.succeed("test $(readlink /var/lib/edcb/lib/BonDriver_FileOnly.so.ini) = ${customSettingsFile}")
     machine.succeed("cmp /var/lib/edcb/lib/BonDriver_FileOnly.so.ini ${customSettingsFile}")
     machine.fail("grep -F 'SERVER_HOST=' /var/lib/edcb/lib/BonDriver_Custom.so.ini")
@@ -146,7 +160,7 @@ pkgs.testers.runNixOSTest {
     import base64
 
     files = {
-        "EpgTimerSrv.ini": ("SaveLog", "1"),
+        "EpgTimerSrv.ini": ("EnableHttpSrv", "1"),
         "Common.ini": ("RecFolderPath0", "/mnt/tv/recordings"),
         "EpgDataCap_Bon.ini": ("TsBuffMaxCount", "5000"),
         "RecName_Macro.so.ini": ("Macro", "$ZtoH(Title)$.ts"),
@@ -163,6 +177,7 @@ pkgs.testers.runNixOSTest {
     before = machine.succeed("sha256sum /var/lib/edcb/*.ini")
     machine.succeed("systemctl restart edcb")
     assert machine.succeed("sha256sum /var/lib/edcb/*.ini") == before
+    assert machine.succeed("sha256sum /var/lib/edcb/ssl_cert.pem") == certificate_hash
     machine.succeed("systemctl stop edcb")
     machine.succeed("echo custom >> /var/lib/edcb/Setting/HttpPublic.ini")
     machine.succeed("/run/current-system/activate")

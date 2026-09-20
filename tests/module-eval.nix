@@ -27,23 +27,32 @@ let
         services.pcscd.enable = true;
         services.mirakurun.serverSettings.logLevel = 1;
         services.edcb.settings.SET.SaveLog = 1;
+        services.edcb.settingsImmutable = true;
+        services.edcb.commonSettingsImmutable = true;
+        services.edcb.epgDataCapBonSettingsImmutable = true;
+        services.edcb.recNameMacroSettingsImmutable = true;
         services.edcb.materialWebUI.enable = true;
         services.edcb.epgDataCapBonSettings.SET.TsBuffMaxCount = 5000;
         services.edcb.recNameMacroSettings.SET.Macro = "$ZtoH(Title)$.ts";
-        hardware.dtv.bondriver.mirakc.settings.GLOBAL.PRIORITY = 5;
         services.edcb.bondriver = [
-          "mirakc"
-          "custom"
+          {
+            package = pkgs.nix-dtv.bondriver-linux-mirakc;
+            driverPath = nixpkgs.lib.mkDefault "${pkgs.nix-dtv.bondriver-linux-mirakc}/lib/BonDriver_LinuxMirakc.so";
+            settings.GLOBAL.PRIORITY = 5;
+            tunerSettings = {
+              Count = 4;
+              GetEpg = 1;
+              EPGCount = 2;
+            };
+          }
+          {
+            package = fakeCustomBonDriver;
+            driverPath = "${fakeCustomBonDriver}/other/BonDriver_Custom.so";
+            settings.GLOBAL.PRIORITY = 7;
+            settingsFile = customSettingsFile;
+            tunerSettings.Count = 2;
+          }
         ];
-        hardware.dtv.bondriver.custom.package = fakeCustomBonDriver;
-        hardware.dtv.bondriver.custom.driverPath = "${fakeCustomBonDriver}/other/BonDriver_Custom.so";
-        hardware.dtv.bondriver.unselected = {
-          package = fakeCustomBonDriver;
-          driverPath = "${fakeCustomBonDriver}/other/BonDriver_Unselected.so";
-          settings.GLOBAL.PRIORITY = 9;
-        };
-        hardware.dtv.bondriver.custom.settings.GLOBAL.PRIORITY = 7;
-        hardware.dtv.bondriver.custom.settingsFile = customSettingsFile;
         services.konomitv = {
           captureDir = [
             "/var/lib/konomitv/capture"
@@ -66,24 +75,58 @@ let
     ];
   };
   cfg = evaluated.config;
+  defaultDtv = nixpkgs.lib.nixosSystem {
+    inherit system;
+    modules = [
+      self.nixosModules.dtv
+      {
+        services.dtv.enable = true;
+        services.dtv.edcb.enable = true;
+      }
+    ];
+  };
+  withCustomOverlay = nixpkgs.lib.nixosSystem {
+    inherit system;
+    modules = [
+      self.nixosModules.default
+      {
+        nixpkgs.overlays = [ (_: _: { }) ];
+        hardware.dtv.px4_drv.enable = true;
+        services.mirakurun.enable = true;
+        services.edcb.enable = true;
+      }
+    ];
+  };
   customSettingsFile = pkgs.writeText "custom-driver.ini" "[GLOBAL]\nPRIORITY=17\n";
   fakeCustomBonDriver = pkgs.runCommand "fake-custom-bondriver" { } ''
     mkdir -p "$out/other"
     touch "$out/other/BonDriver_Custom.so"
   '';
-  unknownDriver = evaluated.extendModules {
-    modules = [ { services.edcb.bondriver = nixpkgs.lib.mkForce [ "missing" ]; } ];
-  };
   duplicateBinary = evaluated.extendModules {
     modules = [
       {
-        hardware.dtv.bondriver.duplicate = {
-          package = fakeCustomBonDriver;
-          driverPath = "${fakeCustomBonDriver}/another/BonDriver_Custom.so";
-        };
         services.edcb.bondriver = nixpkgs.lib.mkForce [
-          "custom"
-          "duplicate"
+          (builtins.elemAt cfg.services.edcb.bondriver 1)
+          {
+            package = fakeCustomBonDriver;
+            driverPath = "${fakeCustomBonDriver}/another/BonDriver_Custom.so";
+          }
+        ];
+      }
+    ];
+  };
+  sameBinaryDifferentNames = evaluated.extendModules {
+    modules = [
+      {
+        services.edcb.bondriver = nixpkgs.lib.mkForce [
+          (builtins.elemAt cfg.services.edcb.bondriver 1)
+          {
+            package = fakeCustomBonDriver;
+            driverPath = "${fakeCustomBonDriver}/other/BonDriver_Custom.so";
+            name = "BonDriver_Custom_2.so";
+            settings.GLOBAL.PRIORITY = 8;
+            tunerSettings.Count = 3;
+          }
         ];
       }
     ];
@@ -91,15 +134,36 @@ let
   withoutWebUI = evaluated.extendModules {
     modules = [ { services.edcb.materialWebUI.enable = nixpkgs.lib.mkForce false; } ];
   };
+  webUIWithDefaultSettings = nixpkgs.lib.nixosSystem {
+    inherit system;
+    modules = [
+      self.nixosModules.edcb
+      {
+        services.edcb.enable = true;
+        services.edcb.materialWebUI.enable = true;
+      }
+    ];
+  };
+  webUIWithUnmanagedSettings = nixpkgs.lib.nixosSystem {
+    inherit system;
+    modules = [
+      self.nixosModules.edcb
+      {
+        services.edcb.enable = true;
+        services.edcb.materialWebUI.enable = true;
+        services.edcb.settings = null;
+      }
+    ];
+  };
   mergedSettings = evaluated.extendModules {
     modules = [
       {
         services.edcb = {
-          settingsImmutable = false;
-          commonSettingsImmutable = false;
+          settingsImmutable = nixpkgs.lib.mkForce false;
+          commonSettingsImmutable = nixpkgs.lib.mkForce false;
           commonSettings = { };
-          epgDataCapBonSettingsImmutable = false;
-          recNameMacroSettingsImmutable = false;
+          epgDataCapBonSettingsImmutable = nixpkgs.lib.mkForce false;
+          recNameMacroSettingsImmutable = nixpkgs.lib.mkForce false;
         };
       }
     ];
@@ -111,9 +175,8 @@ let
     modules = [
       {
         services.edcb.bondriver = nixpkgs.lib.mkForce [
-          "custom"
-          "mirakc"
-          "custom"
+          (builtins.elemAt cfg.services.edcb.bondriver 1)
+          (builtins.elemAt cfg.services.edcb.bondriver 0)
         ];
       }
     ];
@@ -181,15 +244,42 @@ let
   );
 in
 assert nixpkgs.lib.any (
-  a: !a.assertion && nixpkgs.lib.hasInfix "undefined hardware.dtv.bondriver" a.message
-) unknownDriver.config.assertions;
-assert nixpkgs.lib.any (
-  a: !a.assertion && nixpkgs.lib.hasInfix "duplicate binary filenames" a.message
+  a: !a.assertion && nixpkgs.lib.hasInfix "duplicate names" a.message
 ) duplicateBinary.config.assertions;
+assert !(cfg.hardware.dtv ? bondriver);
+assert defaultDtv.config.services.edcb.bondriver == [ ];
+assert !(withCustomOverlay.pkgs ? nix-dtv);
+assert withCustomOverlay.config.hardware.dtv.px4_drv.package.pname == "px4_drv";
+assert withCustomOverlay.config.services.mirakurun.package.version == "4.1.3";
+assert withCustomOverlay.config.services.edcb.package.pname == "edcb";
+assert withCustomOverlay.config.services.edcb.materialWebUI.package.pname == "edcb-material-webui";
+assert
+  !(nixpkgs.lib.any (
+    a: !a.assertion && nixpkgs.lib.hasInfix "duplicate names" a.message
+  ) sameBinaryDifferentNames.config.assertions);
+assert
+  (builtins.elemAt sameBinaryDifferentNames.config.services.edcb.bondriver 0).name
+  == "BonDriver_Custom.so";
+assert
+  (builtins.elemAt sameBinaryDifferentNames.config.services.edcb.bondriver 1).name
+  == "BonDriver_Custom_2.so";
+assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/lib/BonDriver_Custom_2.so - - - - ")
+  sameBinaryDifferentNames.config.systemd.tmpfiles.rules;
+assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/lib/BonDriver_Custom_2.so.ini - - - - ")
+  sameBinaryDifferentNames.config.systemd.tmpfiles.rules;
 assert
   !(nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/EpgTimerSrv.ini ") unmanagedSettings.config.systemd.tmpfiles.rules);
 assert cfg.services.edcb.settingsImmutable;
 assert cfg.services.edcb.materialWebUI.enable;
+assert !webUIWithDefaultSettings.config.services.edcb.settingsImmutable;
+assert webUIWithDefaultSettings.config.services.edcb.settings.SET.TCPPort == 4510;
+assert webUIWithDefaultSettings.config.services.edcb.settings.SET.EnableHttpSrv == 1;
+assert webUIWithUnmanagedSettings.config.services.edcb.settings == null;
+assert
+  !(nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/EpgTimerSrv.ini ") webUIWithUnmanagedSettings.config.systemd.tmpfiles.rules);
+assert nixpkgs.lib.hasInfix "ssl_cert.pem" cfg.systemd.services.edcb.preStart;
+assert nixpkgs.lib.hasInfix "DNS:localhost" cfg.systemd.services.edcb.preStart;
+assert withoutWebUI.config.systemd.services.edcb.preStart == "";
 assert
   !(nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/HttpPublic/E3 ") withoutWebUI.config.systemd.tmpfiles.rules);
 assert nixpkgs.lib.hasInfix "removeMaterialWebUILink /var/lib/edcb/HttpPublic/E3"
@@ -205,7 +295,7 @@ assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/Setting/XCODE_OPTION
 assert builtins.elem cfg.services.edcb.materialWebUI.package
   cfg.systemd.services.edcb.restartTriggers;
 assert cfg.services.edcb.commonSettingsImmutable;
-assert mergedSettings.config.systemd.services.edcb.preStart == "";
+assert nixpkgs.lib.hasInfix "ssl_cert.pem" mergedSettings.config.systemd.services.edcb.preStart;
 assert builtins.elem "users"
   mergedSettings.config.system.activationScripts.edcb-merge-settings.deps;
 assert cfg.services.edcb.epgDataCapBonSettingsImmutable;
@@ -304,24 +394,24 @@ assert cfg.services.edcb.settings.SET.SaveLog == 1;
 assert !(cfg.services.edcb.settings.SET ? EnableTCPSrv);
 assert !(cfg.services.edcb.settings ? EPG_CAP);
 assert !(cfg.services.edcb.settings ? "BonDriver_LinuxMirakc.so");
-assert cfg.services.edcb.commonSettings == null;
-assert
-  !(nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/Common.ini ") cfg.systemd.tmpfiles.rules);
+assert cfg.services.edcb.commonSettings == { };
+assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/Common.ini ")
+  cfg.systemd.tmpfiles.rules;
 assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/Bitrate.ini ")
   cfg.systemd.tmpfiles.rules;
 assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/BonCtrl.ini ")
   cfg.systemd.tmpfiles.rules;
 assert cfg.services.edcb.epgDataCapBonSettings.SET.TsBuffMaxCount == 5000;
 assert cfg.services.edcb.recNameMacroSettings.SET.Macro == "$ZtoH(Title)$.ts";
-assert cfg.hardware.dtv.bondriver.mirakc.settingsFile == null;
+assert (builtins.elemAt cfg.services.edcb.bondriver 0).settingsFile == null;
 assert builtins.elem customSettingsFile cfg.systemd.services.edcb.restartTriggers;
 assert
   !(nixpkgs.lib.hasInfix "BonDriver_Custom.so.ini" cfg.system.activationScripts.edcb-unmanage-files.text);
-assert cfg.hardware.dtv.bondriver.mirakc.settings.GLOBAL.PRIORITY == 5;
-assert !(cfg.hardware.dtv.bondriver.mirakc.settings.GLOBAL ? SERVER_HOST);
-assert !(cfg.hardware.dtv.bondriver.mirakc.settings.GLOBAL ? DECODE_B25);
-assert cfg.hardware.dtv.bondriver.custom.settings.GLOBAL.PRIORITY == 7;
-assert cfg.hardware.dtv.bondriver.custom.package == fakeCustomBonDriver;
+assert (builtins.elemAt cfg.services.edcb.bondriver 0).settings.GLOBAL.PRIORITY == 5;
+assert !((builtins.elemAt cfg.services.edcb.bondriver 0).settings.GLOBAL ? SERVER_HOST);
+assert !((builtins.elemAt cfg.services.edcb.bondriver 0).settings.GLOBAL ? DECODE_B25);
+assert (builtins.elemAt cfg.services.edcb.bondriver 1).settings.GLOBAL.PRIORITY == 7;
+assert (builtins.elemAt cfg.services.edcb.bondriver 1).package == fakeCustomBonDriver;
 assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/lib/BonDriver_LinuxMirakc.so ")
   cfg.systemd.tmpfiles.rules;
 assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/lib/BonDriver_Custom.so ")
@@ -336,16 +426,16 @@ assert builtins.elem "/var/lib/konomitv/capture:/host-rootfs/var/lib/konomitv/ca
 assert builtins.elem "/srv/tv/capture:/host-rootfs/srv/tv/capture:rw" konomitvVolumes;
 assert nixpkgs.lib.any (nixpkgs.lib.hasPrefix "d /srv/tv/capture ") cfg.systemd.tmpfiles.rules;
 assert cfg.virtualisation.oci-containers.backend == "docker";
-assert builtins.elem "/dev/dri/:/dev/dri/" (konomitvDevices cfg);
+assert builtins.elem "/dev/dri:/dev/dri" (konomitvDevices cfg);
 assert builtins.elem "/dev/video0:/dev/video0" (konomitvDevices cfg);
 assert !(builtins.elem "--gpus=all,capabilities=compute,utility,video" (konomitvOptions cfg));
-assert !(builtins.elem "/dev/dri/:/dev/dri/" (konomitvDevices ffmpegEncoder.config));
+assert !(builtins.elem "/dev/dri:/dev/dri" (konomitvDevices ffmpegEncoder.config));
 assert builtins.elem "/dev/video0:/dev/video0" (konomitvDevices ffmpegEncoder.config);
-assert builtins.elem "/dev/dri/:/dev/dri/" (konomitvDevices vceEncoder.config);
+assert builtins.elem "/dev/dri:/dev/dri" (konomitvDevices vceEncoder.config);
 assert builtins.elem "--gpus=all,capabilities=compute,utility,video" (
   konomitvOptions nvencEncoder.config
 );
-assert !(builtins.elem "/dev/dri/:/dev/dri/" (konomitvDevices nvencEncoder.config));
+assert !(builtins.elem "/dev/dri:/dev/dri" (konomitvDevices nvencEncoder.config));
 assert nvencEncoder.config.hardware.nvidia-container-toolkit.enable;
 pkgs.runCommand "nix-dtv-module-eval"
   {
@@ -364,8 +454,8 @@ pkgs.runCommand "nix-dtv-module-eval"
 
     ini = read("${srvIni cfg}")
     assert dict(ini["TVTEST"]) == {"Num": "2", "0": "BonDriver_LinuxMirakc.so", "1": "BonDriver_Custom.so"}
-    for name, priority in [("BonDriver_LinuxMirakc.so", "0"), ("BonDriver_Custom.so", "1")]:
-        assert dict(ini[name]) == {"Count": "1", "GetEpg": "1", "EPGCount": "1", "Priority": priority}
+    assert dict(ini["BonDriver_LinuxMirakc.so"]) == {"Count": "4", "GetEpg": "1", "EPGCount": "2"}
+    assert dict(ini["BonDriver_Custom.so"]) == {"Count": "2"}
     assert "BonDriver_Unselected.so" not in ini
     assert ini["SET"]["SaveLog"] == "1"
 
@@ -375,14 +465,19 @@ pkgs.runCommand "nix-dtv-module-eval"
 
     reordered = read("${srvIni reorderedDrivers.config}")
     assert dict(reordered["TVTEST"]) == {"Num": "2", "0": "BonDriver_Custom.so", "1": "BonDriver_LinuxMirakc.so"}
-    assert reordered["BonDriver_Custom.so"]["Priority"] == "0"
-    assert reordered["BonDriver_LinuxMirakc.so"]["Priority"] == "1"
+    assert dict(reordered["BonDriver_Custom.so"]) == {"Count": "2"}
+    assert dict(reordered["BonDriver_LinuxMirakc.so"]) == {"Count": "4", "GetEpg": "1", "EPGCount": "2"}
 
     overridden = read("${srvIni overriddenTuners.config}")
     assert overridden["TVTEST"]["Num"] == "1"
     assert overridden["TVTEST"]["0"] == "BonDriver_Custom.so"
     assert dict(overridden["BonDriver_LinuxMirakc.so"]) == {"Count": "4", "GetEpg": "0", "EPGCount": "2", "Priority": "7"}
-    assert overridden["BonDriver_Custom.so"]["Count"] == "1"
+    assert overridden["BonDriver_Custom.so"]["Count"] == "2"
+
+    shared = read("${srvIni sameBinaryDifferentNames.config}")
+    assert dict(shared["TVTEST"]) == {"Num": "2", "0": "BonDriver_Custom.so", "1": "BonDriver_Custom_2.so"}
+    assert dict(shared["BonDriver_Custom.so"]) == {"Count": "2"}
+    assert dict(shared["BonDriver_Custom_2.so"]) == {"Count": "3"}
 
     with open("${konomitvConfig}", encoding="utf-8") as file:
         konomitv = yaml.safe_load(file)

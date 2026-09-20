@@ -9,6 +9,7 @@ let
 in
 {
   imports = [
+    ./overlay.nix
     ./px4_drv.nix
     ./mirakurun.nix
     ./edcb.nix
@@ -43,7 +44,6 @@ in
       enable = lib.mkDefault cfg.edcb.enable;
       recordingDir = lib.mkDefault cfg.recordingDir;
       recordingGroup = lib.mkDefault cfg.recordingGroup;
-      bondriver = lib.mkDefault [ "mirakc" ];
     };
     services.konomitv = {
       enable = lib.mkDefault cfg.konomitv.enable;

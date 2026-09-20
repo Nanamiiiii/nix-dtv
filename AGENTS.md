@@ -37,7 +37,6 @@ physical tuner
   - `nixosModules.dtv`: `services.dtv` convenience layer
   - `nixosModules.px4_drv`: `hardware.dtv.px4_drv`
   - `nixosModules.mirakurun`: `services.mirakurun`
-  - `nixosModules.bondriver`: `hardware.dtv.bondriver`
   - `nixosModules.edcb`: `services.edcb`
   - `nixosModules.konomitv`: `services.konomitv`
 
@@ -47,7 +46,7 @@ physical tuner
 flake.nix
 pkgs/default.nix
 pkgs/{px4_drv,mirakurun,recisdb,isdb-scanner,edcb,edcb-material-webui,bondriver-linux-mirakc}/default.nix
-modules/{default,dtv,px4_drv,bondriver,mirakurun,edcb,konomitv}.nix
+modules/{default,dtv,overlay,px4_drv,mirakurun,edcb,konomitv}.nix
 tests/{default,module-eval,mirakurun,edcb,integration}.nix
 ```
 
@@ -105,28 +104,30 @@ ISDBScanner は上流sourceをPythonで実行し、次をNix closureに含めて
 ### EDCB / BonDriver
 
 - EDCBはWineではなくLinux nativeのEpgTimerSrvを `edcb:edcb` で実行する。
-- immutable binaryと`.so`はNix store、mutable settings/stateは `/var/lib/edcb`。BonDriverは `hardware.dtv.bondriver.<name>` の `package`、実バイナリへの絶対パス `driverPath`、`settings`、`settingsFile` で定義する。`settingsFile` は既定値 `null`。指定されたファイルへのリンクをEDCB側で配置し、`settings` より優先する。両方 `null` ならINIは管理しない。`mirakc` は同梱ドライバーの定義。EDCBは `services.edcb.bondriver` の文字列リストで選択された定義だけを配置する。本体は `driverPath` のbasenameで `/var/lib/edcb/lib` にリンクし、INIは隣に `<basename>.ini` として配置する。未定義の名前と選択ドライバーのbasename重複を検出する。
-- `services.edcb.bondriver` の既定値は空リスト。`services.dtv` の標準構成では `[ "mirakc" ]` を選択する。
+- immutable binaryと`.so`はNix store、mutable settings/stateは `/var/lib/edcb`。BonDriverは `services.edcb.bondriver` の定義リストに `package`、実バイナリへの絶対パス `driverPath`、配置名 `name`、`settings`、`settingsFile`、`tunerSettings` を指定する。`name` の既定値は `driverPath` のbasename。`settingsFile` は既定値 `null`。指定されたファイルへのリンクをEDCB側で配置し、`settings` より優先する。両方 `null` ならINIは管理しない。BonDriver本体は `name` で `/var/lib/edcb/lib` にリンクし、INIは隣に `<name>.ini` として配置する。同じ `driverPath` でも異なる `name` を指定すれば複数配置できる。`name` の重複を検出する。同梱BonDriver_LinuxMirakcのビルド出力は `$out/lib/BonDriver_LinuxMirakc.so`。
+- `services.edcb.bondriver` の既定値は空リスト。`services.dtv` からも自動追加せず、使用するドライバーをホスト側で明示する。
 - EDCB userはrecording group `dtv` にだけ追加する。
 - recording directories以外へ広いwrite権限を与えない。
-- `EpgTimerSrv.ini`, `Common.ini`, `EpgDataCap_Bon.ini`, `RecName_Macro.so.ini` と `hardware.dtv.bondriver."<driver name>".settings` の設定optionはdefaultを `null` とし、明示された `<driver name>.ini` だけUTF-8（BOMなし）でNixから生成する。未指定ならEDCBが生成したmutable fileを使う。`Bitrate.ini` と `BonCtrl.ini` は上流サンプルを初回だけmutableな設定として配置し、既存ファイルを上書きしない。
-- EpgTimerSrvをNix管理する場合はsystem clock変更を無効にする `TimeSync=0`、loopback限定TCP `4510`、KonomiTV互換用 `CompatFlags=128` を補完する。選択したBonDriverには同時利用数1を補完し、ホスト設定で変更できる。時刻同期はsystemd-timesyncdやchronyへ任せる。
+- `EpgTimerSrv.ini`, `Common.ini`, `EpgDataCap_Bon.ini` は既定でNix管理する。`RecName_Macro.so.ini` と BonDriver定義内の `settings` の既定値は `null`。`tunerSettings` の既定値は `{ }`。`Bitrate.ini` と `BonCtrl.ini` は上流サンプルを初回だけmutableな設定として配置し、既存ファイルを上書きしない。
+- `services.edcb.settings` の既定値にはsystem clock変更を無効にする `TimeSync=0`、TCP `4510`、KonomiTV互換用 `CompatFlags=128` などを含める。明示した `settings` はこの既定値を置き換える。チューナー数は各BonDriverの `tunerSettings.Count` で指定する。時刻同期はsystemd-timesyncdやchronyへ任せる。
 - BonDriverのINI設定にはドライバー別の値を補完しない。BonDriver_LinuxMirakc自体の既定接続先はHTTP `127.0.0.1:40772`。recisdbが既定でB25処理するため `DECODE_B25` は書かず、上流既定値の0を使う。
-- `services.edcb.settings` が非 `null` なら、`services.edcb.bondriver` の選択順（同名の重複は最初だけ）から `[TVTEST]` の `Num` と0始まりの番号キー、および各 `driverPath` のbasenameをセクション名にした `Count=1`, `GetEpg=1`, `EPGCount=1`, `Priority=0,1,…` を補完する。空リストでは `TVTEST.Num=0`、ドライバー別セクションなし。明示した `services.edcb.settings` の同じキーを優先し、`settings = null` は引き続きINIを管理しない。mutableマージでもこれらの補完値はactivation時に適用する。
+- `services.edcb.settings` が非 `null` なら、`services.edcb.bondriver` のリスト順から `[TVTEST]` の `Num` と0始まりの番号キーを補完し、各定義の `tunerSettings` を `name` と同名のセクションに追加する。`Count`、`GetEpg`、`EPGCount`、`Priority` は自動補完しない。空リストでは `TVTEST.Num=0`、ドライバー別セクションなし。明示した `services.edcb.settings` の同じキーを優先し、`settings = null` は引き続きINIを管理しない。mutableマージでもこれらの補完値はactivation時に適用する。
 - `services.edcb.recordingDir` は文字列リスト。全directoryを `root:dtv`, mode `2770` で作成し、EDCBの `ReadWritePaths` に追加する。`commonSettings` が非 `null` なら指定順に `RecFolderPath0`, `RecFolderPath1`, …と `RecFolderNum` を補完する。
 - `services.edcb.manageRecordingDirs` のdefaultは `true`。`false` では録画先のtmpfiles ruleだけを生成しない。`ReadWritePaths`、`Common.ini`、`RequiresMountsFor` には引き続き全録画先を設定する。
 - EDCBとKonomiTVのserviceはすべての録画先を `RequiresMountsFor` に指定し、NFS mountなどの完了後に起動する。
-- EPG取得時刻、録画方針、ログなどの環境固有値はホスト設定で指定する。チューナー数の初期値1は実機構成に合わせて上書きする。
-- BonDriver_LinuxMirakc upstreamはMirakurun互換性を未テストとしている。warningを消さず、実機で長時間録画を検証する。
+- EPG取得時刻、録画方針、ログなどの環境固有値はホスト設定で指定する。チューナー数も実機構成に合わせて `tunerSettings.Count` へ指定する。
+- BonDriver_LinuxMirakc と Mirakurun の組み合わせは実機で動作確認済みのため、互換性 warning は出さない。
 
 ### EDCB Material WebUI
 
 - `services.edcb.materialWebUI.enable` は既定で `false`。有効時、固定した E3 package の `HttpPublic/E3` と `HttpPublic/api` を `/var/lib/edcb/HttpPublic` 以下にリンクする。
 - 無効化した場合は managed な `E3` と `api` の store link だけを削除し、mutable な設定ファイルは残す。
 - 上流のディレクトリ名は `Setting`（単数）。`Setting/HttpPublic.ini` と `Setting/XCODE_OPTIONS.lua` は `/var/lib/edcb/Setting` に初回だけ mutable なファイルとしてコピーし、既存値を上書きしない。INI は CP932 から UTF-8（BOMなし）に変換する。
-- HTTP サーバーは `services.edcb.settings` を非 `null` にしたときに補完される `EnableHttpSrv=1` で有効になる。E3 の利用例では `HttpNumThreads=50` を明示する。標準ポートは `5510`、アクセス制御は EDCB の loopback 既定値を使う。
+- Web UI を有効にすると `HttpPort=5510,5511s,5520,5521s` を補完する。`EnableHttpSrv=1` とアクセス制御は `settings` の既定値に含まれ、`HttpNumThreads` などを明示する場合は必要な値を併記する。明示的な `settings = null` は管理対象外のまま。既定のアクセス制御は loopback とプライベートネットワークを許可する。
+- `edcb.service` は Web UI 有効時の初回起動前に `/var/lib/edcb/ssl_cert.pem`（自己署名証明書と秘密鍵）を `edcb:edcb`、mode `0600` で生成する。既存ファイルは上書きしない。SAN は localhost、127.0.0.1、NixOS ホスト名と `extraCertificateSubjectAltNames` を含む。SAN の変更で既存証明書は更新しない。
+- Linux 版 EDCB は OpenSSL 3 の `libssl.so.3` と `libcrypto.so.3` を動的に読み込むため、EDCB package は OpenSSL を closure と runtime rpath に含める。
 - EDCB package は Lua 5.2 を build input に含め、Lua ライブラリへの rpath を設定済み。WebUI 用に別の Lua interpreter は不要。E3 側には未設定の `NVRAM.ZIP` を連結すると失敗するため、空値を許す最小 patch を適用。
-- HTTPS/PWA/TS-Live! には証明書と HTTPS port、リモート視聴にはトランスコーダーが別途必要。
+- HTTPS/PWA/TS-Live! を利用する端末では自己署名証明書を信頼する設定が必要。リモート視聴にはトランスコーダーが別途必要。
 
 ### KonomiTV
 
@@ -175,6 +176,19 @@ ISDBScanner は上流sourceをPythonで実行し、次をNix closureに含めて
 - native Mirakurun API `40772`とEDCB TCP `4510`を同時に起動するintegration VM test成功。
 - `nix flake check --all-systems --no-build`でaarch64-linuxを含む全outputの評価成功。
 
+2026-09-21 に EMWUI 3 の HTTPS 対応について次を確認しました。
+
+- EDCB package の x86_64-linux build 成功。EpgTimerSrv の RUNPATH に OpenSSL 3 の lib directory が含まれる。
+- EDCB module VM test で自己署名証明書の生成、mode 0600、再起動時の保持を確認。
+- integration VM test で HTTPS `5511` と `5521` の Web UI 応答を確認。
+- `nix flake check` と `nix flake check --all-systems --no-build` 成功。
+
+2026-09-21 に BonDriver 定義を `services.edcb.bondriver` のリストへ移動し、次を確認しました。
+
+- BonDriver_LinuxMirakc package の x86_64-linux build 成功。`.so` は `$out/lib/BonDriver_LinuxMirakc.so` に配置。
+- module-eval test、EDCB module VM test、integration VM test を含む `nix flake check` 成功。
+- `nix flake check --all-systems --no-build` 成功。
+
 標準の確認command:
 
 ```console
@@ -185,6 +199,7 @@ nix build .#px4_drv
 nix build .#recisdb
 nix build .#isdb-scanner
 nix build .#edcb-material-webui
+nix build .#bondriver-linux-mirakc
 nix build .#checks.x86_64-linux.integration
 ```
 
@@ -216,7 +231,7 @@ VMでは代替できないため、実機で次を確認する必要がありま
 ### EDCB INI の既存値とのマージ
 
 `services.edcb` 直下の `settingsImmutable`、`commonSettingsImmutable`、
-`epgDataCapBonSettingsImmutable`、`recNameMacroSettingsImmutable` は既定値 `true` です。
+`epgDataCapBonSettingsImmutable`、`recNameMacroSettingsImmutable` は既定値 `false` です。
 `true` なら生成した INI を Nix store への読み取り専用リンクとして配置します。
 `false` なら NixOS activation（構成の適用時・OS 起動時）に既存 INI と Nix 定義を
 マージし、edcb:edcb 所有の通常ファイル（UTF-8、BOMなし、mode 0640）として配置します。

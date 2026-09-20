@@ -8,13 +8,17 @@ let
   cfg = config.hardware.dtv.px4_drv;
 in
 {
+  imports = [ ./overlay.nix ];
+
   options.hardware.dtv.px4_drv = {
     enable = lib.mkEnableOption "Unofficial Linux Driver for PLEX and e-Better ISDB-T/S Tuner";
 
     package = lib.mkOption {
       type = lib.types.package;
-      default = config.boot.kernelPackages.callPackage ../pkgs/px4_drv { };
-      defaultText = lib.literalExpression "config.boot.kernelPackages.callPackage <nix-dtv/pkgs/px4_drv> { }";
+      default =
+        config.boot.kernelPackages.nix-dtv.px4_drv
+          or (config.boot.kernelPackages.callPackage ../pkgs/px4_drv { });
+      defaultText = lib.literalExpression "config.boot.kernelPackages.nix-dtv.px4_drv";
       description = "px4_drv built for the configured NixOS kernel.";
     };
   };

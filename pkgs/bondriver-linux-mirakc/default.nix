@@ -32,7 +32,7 @@ stdenv.mkDerivation {
     runHook preInstall
 
     install -Dm755 BonDriver_LinuxMirakc.so \
-      "$out/lib/edcb/BonDriver_LinuxMirakc.so"
+      "$out/lib/BonDriver_LinuxMirakc.so"
     install -Dm444 BonDriver_LinuxMirakc.so.ini_sample \
       "$out/share/edcb/BonDriver_LinuxMirakc.so.ini.sample"
 

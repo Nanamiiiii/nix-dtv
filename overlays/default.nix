@@ -1,14 +1,24 @@
-final: _prev:
+final: prev:
 
 let
-  packages = import ../pkgs {
-    pkgs = final;
-    kernelPackages = final.linuxPackages;
-  };
+  packages =
+    kernelPackages:
+    (import ../pkgs {
+      pkgs = final;
+      inherit kernelPackages;
+    });
+  defaultPackages = packages final.linuxPackages;
 in
 {
-  nix-dtv = packages;
+  nix-dtv = defaultPackages;
 
   # Keep the nixpkgs Mirakurun module while replacing its outdated package.
-  mirakurun = packages.mirakurun;
+  mirakurun = defaultPackages.mirakurun;
+
+  # px4_drv for each kernel
+  kernelPackagesExtensions = prev.kernelPackagesExtensions ++ [
+    (kernelFinal: kernelPrev: {
+      nix-dtv = packages kernelFinal;
+    })
+  ];
 }

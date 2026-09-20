@@ -9,20 +9,22 @@ let
   cfg = config.services.mirakurun;
 in
 {
+  imports = [ ./overlay.nix ];
+
   # Extend the nixpkgs Mirakurun module instead of replacing it. This keeps
   # smart-card access, runtime-generated tuner/channel settings, firewall and
   # socket options in one upstream-maintained implementation.
   options.services.mirakurun = {
     package = lib.mkOption {
       type = lib.types.package;
-      default = pkgs.callPackage ../pkgs/mirakurun { };
+      default = pkgs.nix-dtv.mirakurun or (pkgs.callPackage ../pkgs/mirakurun { });
       defaultText = lib.literalExpression "pkgs.nix-dtv.mirakurun";
       description = "Mirakurun package used by the nixpkgs service module.";
     };
 
     tunerCommandPackages = lib.mkOption {
       type = lib.types.listOf lib.types.package;
-      default = [ (pkgs.callPackage ../pkgs/recisdb { }) ];
+      default = [ (pkgs.nix-dtv.recisdb or (pkgs.callPackage ../pkgs/recisdb { })) ];
       defaultText = lib.literalExpression "[ pkgs.nix-dtv.recisdb ]";
       description = "Packages containing tuner commands referenced by tuners.yml.";
     };

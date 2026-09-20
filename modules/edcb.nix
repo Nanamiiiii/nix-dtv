@@ -10,22 +10,22 @@ let
   ini = pkgs.formats.ini { };
   runtimeLibDir = "/var/lib/edcb/lib";
   webUIRoot = "${cfg.materialWebUI.package}/share/edcb-material-webui";
+  certificateSubjectAltNames = lib.unique (
+    [
+      "DNS:localhost"
+      "IP:127.0.0.1"
+    ]
+    ++ lib.optional (config.networking.hostName != "") "DNS:${config.networking.hostName}"
+    ++ cfg.materialWebUI.extraCertificateSubjectAltNames
+  );
   epgTimerSrvSettings =
     if cfg.settings == null then
       null
     else
       lib.recursiveUpdate (
         tunerSettings
-        // {
-          SET = {
-            EnableHttpSrv = 1;
-            HttpAccessControlList = "+127.0.0.0/8,+10.0.0.0/8,+172.16.0.0/12,+192.168.0.0/16,+169.254.0.0/16,+100.64.0.0/10";
-            EnableTCPSrv = 1;
-            TCPAccessControlList = "+127.0.0.1,+::1,+::ffff:127.0.0.1";
-            TCPPort = 4510;
-            CompatFlags = 128;
-            TimeSync = 0;
-          };
+        // lib.optionalAttrs cfg.materialWebUI.enable {
+          SET.HttpPort = "5510,5511s,5520,5521s";
         }
       ) cfg.settings;
   commonSettings =
@@ -43,17 +43,7 @@ let
           }) cfg.recordingDir
         );
       } cfg.commonSettings;
-  selectedNames = lib.unique cfg.bondriver;
-  missingDrivers = lib.filter (
-    name: !(builtins.hasAttr name config.hardware.dtv.bondriver)
-  ) selectedNames;
-  selectedDrivers = map (
-    name:
-    let
-      driver = config.hardware.dtv.bondriver.${name};
-    in
-    driver // { fileName = builtins.baseNameOf driver.driverPath; }
-  ) (lib.filter (name: builtins.hasAttr name config.hardware.dtv.bondriver) selectedNames);
+  selectedDrivers = cfg.bondriver;
   tunerSettings = {
     TVTEST = {
       Num = builtins.length selectedDrivers;
@@ -61,29 +51,24 @@ let
     // builtins.listToAttrs (
       lib.imap0 (index: driver: {
         name = toString index;
-        value = driver.fileName;
+        value = driver.name;
       }) selectedDrivers
     );
   }
   // builtins.listToAttrs (
-    lib.imap0 (index: driver: {
-      name = builtins.unsafeDiscardStringContext driver.fileName;
-      value = {
-        Count = 1;
-        GetEpg = 1;
-        EPGCount = 1;
-        Priority = index;
-      };
-    }) selectedDrivers
+    map (driver: {
+      name = builtins.unsafeDiscardStringContext driver.name;
+      value = driver.tunerSettings;
+    }) (lib.filter (driver: driver.tunerSettings != { }) selectedDrivers)
   );
   bonDriverIniFiles = map (driver: {
-    name = "${driver.fileName}.ini";
-    path = "${runtimeLibDir}/${driver.fileName}.ini";
+    name = "${driver.name}.ini";
+    path = "${runtimeLibDir}/${driver.name}.ini";
     settings = driver.settings;
     settingsFile = driver.settingsFile;
   }) selectedDrivers;
   bonDriverLibraryLinks = map (
-    driver: "L+ ${runtimeLibDir}/${driver.fileName} - - - - ${driver.driverPath}"
+    driver: "L+ ${runtimeLibDir}/${driver.name} - - - - ${driver.driverPath}"
   ) selectedDrivers;
   iniFiles = [
     {
@@ -174,14 +159,14 @@ let
   ];
 in
 {
-  imports = [ ./bondriver.nix ];
+  imports = [ ./overlay.nix ];
 
   options.services.edcb = {
     enable = lib.mkEnableOption "Linux-native EDCB EpgTimerSrv";
 
     package = lib.mkOption {
       type = lib.types.package;
-      default = pkgs.callPackage ../pkgs/edcb { };
+      default = pkgs.nix-dtv.edcb or (pkgs.callPackage ../pkgs/edcb { });
       defaultText = lib.literalExpression "pkgs.nix-dtv.edcb";
       description = "EDCB package to run.";
     };
@@ -206,13 +191,23 @@ in
 
     settingsImmutable = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "Link the generated INI from the Nix store. When false, merge Nix settings into the existing writable INI during system activation, with Nix values taking precedence. Has no effect when settings is null.";
     };
 
     settings = lib.mkOption {
       type = lib.types.nullOr ini.type;
-      default = null;
+      default = {
+        SET = {
+          EnableHttpSrv = 1;
+          HttpAccessControlList = "+127.0.0.0/8,+10.0.0.0/8,+172.16.0.0/12,+192.168.0.0/16,+169.254.0.0/16,+100.64.0.0/10";
+          EnableTCPSrv = 1;
+          TCPAccessControlList = "+127.0.0.0/8,+10.0.0.0/8,+172.16.0.0/12,+192.168.0.0/16,+169.254.0.0/16,+100.64.0.0/10";
+          TCPPort = 4510;
+          CompatFlags = 128;
+          TimeSync = 0;
+        };
+      };
       example = {
         EPG_CAP = {
           Count = 1;
@@ -221,30 +216,30 @@ in
           "0BasicOnlyFlags" = 14;
         };
       };
-      description = "Managed EpgTimerSrv.ini settings. Null leaves the file unmanaged. A non-null value receives integration defaults and TVTEST/tuner defaults for the selected BonDrivers; explicit settings take precedence.";
+      description = "Managed EpgTimerSrv.ini settings. Null leaves the file unmanaged. The option default provides integration settings; an explicit value replaces it. A non-null value receives TVTEST entries and each BonDriver's tunerSettings, plus Web UI HTTP ports when enabled.";
     };
 
     commonSettingsImmutable = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "Link the generated INI from the Nix store. When false, merge Nix settings into the existing writable INI during system activation, with Nix values taking precedence. Has no effect when commonSettings is null.";
     };
 
     commonSettings = lib.mkOption {
       type = lib.types.nullOr ini.type;
-      default = null;
+      default = { };
       description = "Managed Common.ini settings. Null leaves the file unmanaged; a non-null value also receives the recording directory defaults.";
     };
 
     epgDataCapBonSettingsImmutable = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "Link the generated INI from the Nix store. When false, merge Nix settings into the existing writable INI during system activation, with Nix values taking precedence. Has no effect when epgDataCapBonSettings is null.";
     };
 
     epgDataCapBonSettings = lib.mkOption {
       type = lib.types.nullOr ini.type;
-      default = null;
+      default = { };
       example = {
         SET = {
           SaveDebugLog = 1;
@@ -258,7 +253,7 @@ in
 
     recNameMacroSettingsImmutable = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "Link the generated INI from the Nix store. When false, merge Nix settings into the existing writable INI during system activation, with Nix values taking precedence. Has no effect when recNameMacroSettings is null.";
     };
 
@@ -274,40 +269,92 @@ in
 
       package = lib.mkOption {
         type = lib.types.package;
-        default = pkgs.callPackage ../pkgs/edcb-material-webui { };
+        default = pkgs.nix-dtv.edcb-material-webui or (pkgs.callPackage ../pkgs/edcb-material-webui { });
         defaultText = lib.literalExpression "pkgs.nix-dtv.edcb-material-webui";
         description = "EMWUI 3 package to place in EDCB's HttpPublic and Setting directories.";
+      };
+
+      extraCertificateSubjectAltNames = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ ];
+        example = [
+          "DNS:tv.example.com"
+          "IP:192.168.1.10"
+        ];
+        description = "Additional OpenSSL subjectAltName entries for the self-signed HTTPS certificate generated on first EDCB startup. Localhost, 127.0.0.1, and the NixOS host name are included automatically. Changing this option does not replace an existing certificate.";
       };
     };
 
     bondriver = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
+      type = lib.types.listOf (
+        lib.types.submodule (
+          { config, ... }:
+          {
+            options = {
+              package = lib.mkOption {
+                type = lib.types.package;
+                description = "Package providing this BonDriver.";
+              };
+              driverPath = lib.mkOption {
+                type = lib.types.str;
+                description = "Absolute path to the BonDriver shared library, normally inside package.";
+              };
+              name = lib.mkOption {
+                type = lib.types.str;
+                default = builtins.baseNameOf config.driverPath;
+                defaultText = lib.literalExpression "builtins.baseNameOf driverPath";
+                description = "Filename used for the BonDriver library symlink. The adjacent INI symlink uses <name>.ini. Defaults to the basename of driverPath.";
+              };
+              settingsFile = lib.mkOption {
+                type = lib.types.nullOr lib.types.path;
+                default = null;
+                description = "Existing INI file to link beside the selected driver as <name>.ini. Takes precedence over settings.";
+              };
+              settings = lib.mkOption {
+                type = lib.types.nullOr (pkgs.formats.ini { }).type;
+                default = null;
+                description = "INI settings written beside the selected driver as <name>.ini. Used when settingsFile is null; null leaves the INI unmanaged if settingsFile is also null. No driver-specific values are added.";
+              };
+              tunerSettings = lib.mkOption {
+                type = lib.types.attrsOf (
+                  lib.types.oneOf [
+                    lib.types.str
+                    lib.types.int
+                    lib.types.bool
+                  ]
+                );
+                default = { };
+                description = "Settings written to the section named after this BonDriver in EpgTimerSrv.ini. No tuner values are added automatically.";
+              };
+            };
+          }
+        )
+      );
       default = [ ];
-      example = [ "mirakc" ];
-      description = "Names of BonDrivers to install from hardware.dtv.bondriver. When settings is non-null, their binary filenames populate TVTEST and each receives Count=1, GetEpg=1, EPGCount=1 and a zero-based Priority in selection order. Repeated names are included only once. Override these defaults through settings.";
+      description = "BonDriver definitions to install in selection order. Their names populate TVTEST in EpgTimerSrv.ini.";
     };
+
   };
 
   config = lib.mkIf cfg.enable {
     assertions = [
       {
-        assertion = missingDrivers == [ ];
-        message = "services.edcb.bondriver references undefined hardware.dtv.bondriver entries: ${lib.concatStringsSep ", " missingDrivers}";
-      }
-      {
         assertion =
-          builtins.length (lib.unique (map (driver: driver.fileName) selectedDrivers))
+          builtins.length (lib.unique (map (driver: driver.name) selectedDrivers))
           == builtins.length selectedDrivers;
-        message = "services.edcb.bondriver selects drivers with duplicate binary filenames.";
+        message = "services.edcb.bondriver selects drivers with duplicate names.";
       }
     ]
     ++ map (driver: {
       assertion =
         lib.hasPrefix "/" driver.driverPath
         && builtins.match "[A-Za-z0-9/._+-]+" driver.driverPath != null
-        && lib.hasPrefix "BonDriver" driver.fileName
-        && lib.hasSuffix ".so" driver.fileName;
-      message = "Selected BonDriver driverPath must be an absolute path without whitespace or special characters to a BonDriver*.so file.";
+        && lib.hasSuffix ".so" driver.driverPath;
+      message = "Selected BonDriver driverPath must be an absolute path without whitespace or special characters to a .so file.";
+    }) selectedDrivers
+    ++ map (driver: {
+      assertion = builtins.match "BonDriver[A-Za-z0-9._+-]*[.]so" driver.name != null;
+      message = "Selected BonDriver name must be a BonDriver*.so filename without path separators, whitespace or special characters.";
     }) selectedDrivers;
 
     users.groups.${cfg.recordingGroup} = { };
@@ -396,6 +443,21 @@ in
         ++ map (driver: driver.package) selectedDrivers
         ++ map (driver: driver.driverPath) selectedDrivers
         ++ lib.optional cfg.materialWebUI.enable cfg.materialWebUI.package;
+      preStart = lib.optionalString cfg.materialWebUI.enable ''
+        certificate=/var/lib/edcb/ssl_cert.pem
+        if [ ! -e "$certificate" ] && [ ! -L "$certificate" ]; then
+          umask 077
+          temporary=$(${pkgs.coreutils}/bin/mktemp -d /var/lib/edcb/.ssl-cert.XXXXXXXX)
+          trap '${pkgs.coreutils}/bin/rm -rf -- "$temporary"' EXIT
+          ${pkgs.openssl}/bin/openssl req -new -newkey rsa:2048 -nodes -x509 \
+            -days 3650 -sha256 -subj /CN=localhost \
+            -addext ${lib.escapeShellArg "subjectAltName=${lib.concatStringsSep "," certificateSubjectAltNames}"} \
+            -keyout "$temporary/server.key" -out "$temporary/server.crt"
+          ${pkgs.coreutils}/bin/cat "$temporary/server.crt" "$temporary/server.key" > "$temporary/ssl_cert.pem"
+          ${pkgs.coreutils}/bin/chmod 0600 "$temporary/ssl_cert.pem"
+          ${pkgs.coreutils}/bin/mv -nT -- "$temporary/ssl_cert.pem" "$certificate"
+        fi
+      '';
       serviceConfig = {
         ExecStart = "${cfg.package}/bin/EpgTimerSrv";
         User = "edcb";
@@ -414,7 +476,5 @@ in
         ReadWritePaths = [ "/var/lib/edcb" ] ++ cfg.recordingDir;
       };
     };
-
-    warnings = lib.optional (builtins.elem "mirakc" selectedNames) "BonDriver_LinuxMirakc upstream states that Mirakurun compatibility is untested; verify tuning and long-running recording with your hardware.";
   };
 }

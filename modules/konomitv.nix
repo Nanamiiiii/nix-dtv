@@ -28,7 +28,7 @@ let
   encoderDevices = lib.optionals (lib.elem cfg.encoder [
     "QSVEncC"
     "VCEEncC"
-  ]) [ "/dev/dri/:/dev/dri/" ];
+  ]) [ "/dev/dri:/dev/dri" ];
   containerDevices = lib.unique (encoderDevices ++ cfg.devices);
   encoderExtraOptions = lib.optionals (cfg.encoder == "NVEncC") [
     "--gpus=all,capabilities=compute,utility,video"
@@ -139,6 +139,8 @@ in
 
   config = lib.mkIf cfg.enable {
     hardware.nvidia-container-toolkit.enable = lib.mkIf (cfg.encoder == "NVEncC") (lib.mkDefault true);
+
+    networking.firewall.allowedTCPPorts = [ 7000 ];
 
     virtualisation.docker.enable = true;
     virtualisation.oci-containers.backend = "docker";

@@ -17,8 +17,19 @@ pkgs.testers.runNixOSTest {
     };
 
     services.mirakurun.tunerSettings = [ ];
-    services.edcb.settings = { };
     services.edcb.materialWebUI.enable = true;
+    services.edcb.bondriver = [
+      {
+        package = pkgs.nix-dtv.bondriver-linux-mirakc;
+        driverPath = "${pkgs.nix-dtv.bondriver-linux-mirakc}/lib/BonDriver_LinuxMirakc.so";
+        tunerSettings = {
+          Count = 1;
+          GetEpg = 1;
+          EPGCount = 1;
+          Priority = 0;
+        };
+      }
+    ];
 
     environment.systemPackages = [ pkgs.curl ];
   };
@@ -41,8 +52,13 @@ pkgs.testers.runNixOSTest {
     assert dict(ini["BonDriver_LinuxMirakc.so"]) == {"Count": "1", "GetEpg": "1", "EPGCount": "1", "Priority": "0"}
     machine.wait_for_open_port(4510)
     machine.wait_for_open_port(5510)
+    machine.wait_for_open_port(5511)
+    machine.wait_for_open_port(5521)
     machine.succeed("curl --fail --silent http://127.0.0.1:5510/E3/ -o /tmp/e3.html")
     machine.succeed("grep -q '<html' /tmp/e3.html")
+    machine.succeed("curl --insecure --fail --silent https://127.0.0.1:5511/E3/ -o /tmp/e3-https.html")
+    machine.succeed("grep -q '<html' /tmp/e3-https.html")
+    machine.succeed("curl --insecure --fail --silent https://127.0.0.1:5521/E3/ >/dev/null")
     machine.succeed("curl --fail --silent http://127.0.0.1:5510/api/EnumService >/dev/null")
     machine.succeed("systemctl show edcb -p After | grep mirakurun.service")
     machine.succeed("test -L /var/lib/edcb/lib/BonDriver_LinuxMirakc.so")
