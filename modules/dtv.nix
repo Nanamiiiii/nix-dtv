@@ -52,7 +52,7 @@ in
     };
     services.konomitv = {
       enable = lib.mkDefault cfg.konomitv.enable;
-      recordingDir = lib.mkDefault cfg.recordingDir;
+      recordingDir = lib.mkDefault [ cfg.recordingDir ];
     };
   };
 }

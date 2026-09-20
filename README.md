@@ -83,7 +83,7 @@ nix run github:Nanamiiiii/nix-dtv#isdb-scanner -- ./scanned
 
 出力される Mirakurun の `channels.yml` は recisdb 形式（地上波は `T27`、衛星は `BS01_0` / `CS2` など）です。`tunerSettings` の `recisdb tune ...` と組み合わせて利用してください。`channelSettings` の既定値は `null` なので、生成したチャンネルリストをランタイム設定として配置できます。
 
-`services.dtv.recordingDir` から `dtv` group と setgid directory、KonomiTV の `video.recorded_folders` と read-only bind mount を導出します。`services.edcb.commonSettings` を指定してNix管理を有効にした場合は、EDCBの `Common.ini` にも録画先を補完します。既存環境でgroup名が競合する場合は `services.dtv.recordingGroup` で変更できます。
+`services.dtv.recordingDir` から `dtv` group と setgid directory、KonomiTV の `video.recorded_folders` の1要素と read-only bind mount を導出します。KonomiTVだけで複数の録画先を使う場合は、`services.konomitv.recordingDir` に文字列のリストを指定します。`services.edcb.commonSettings` を指定してNix管理を有効にした場合は、EDCBの `Common.ini` にも録画先を補完します。既存環境でgroup名が競合する場合は `services.dtv.recordingGroup` で変更できます。
 
 ## 権限と状態
 
@@ -95,8 +95,37 @@ nix run github:Nanamiiiii/nix-dtv#isdb-scanner -- ./scanned
 - recisdbは既定でB25処理を行うため、標準構成ではBonDriver側の `DECODE_B25` を設定しません。raw TSを出すチューナーコマンドとMirakurunのdecoderを使う場合だけ明示してください。
 - EDCB の `TimeSync` は `0` のままにし、時刻同期は systemd-timesyncd や chrony に任せてください。
 - KonomiTV は公式 `ghcr.io/tsukumijima/konomitv:latest` image を Docker backend と host network で起動します。upstream image の互換性を優先して container root のままです。
-- KonomiTV の `config.yaml` は Nix store から read-only mount されます。Web UI で server config を永続変更せず、Nix の `services.konomitv.settings` を変更してください。
+- KonomiTV の `config.yaml` は Nix store から read-only mount されます。Web UI で server config を永続変更せず、Nix の `services.konomitv` 以下の専用optionと `extraSettings` を変更してください。
 - KonomiTV には録画 directory を read-only、capture/data/logs だけを read-write mount します。ホスト root 全体は mount しません。
+
+KonomiTV の主要設定は専用optionから生成します。`recordingDir` と `captureDir` は複数指定でき、それぞれ `video.recorded_folders` と `capture.upload_folders` に反映されます。専用optionがない追加項目は `extraSettings` に指定します。`extraSettings` と専用optionが同じキーを指定した場合は専用optionが優先されます。
+
+`encoder` に応じて、[KonomiTV公式のDocker Composeサンプル](https://github.com/tsukumijima/KonomiTV/blob/master/docker-compose.example.yaml)と同じGPUアクセスをcontainerへ設定します。
+
+- `FFmpeg`: GPU deviceを追加しない
+- `QSVEncC` / `VCEEncC`: `/dev/dri/` をcontainerへ渡す
+- `NVEncC`: 全NVIDIA GPUを `compute,utility,video` capability付きで渡し、`hardware.nvidia-container-toolkit.enable` を既定で有効にする
+
+NVEncCではホスト側のNVIDIA driver設定も必要です。通常は `services.xserver.videoDrivers = [ "nvidia" ];` または `hardware.nvidia.datacenter.enable = true;` を指定してください。`devices` はencoderから導出されるdeviceに加えて渡す追加device用です。
+
+```nix
+services.konomitv = {
+  backend = "EDCB";
+  streamFromMirakurun = true;
+  edcbUrl = "tcp://127.0.0.1:4510/";
+  mirakurunUrl = "http://127.0.0.1:40772/";
+  encoder = "QSVEncC";
+  serverPort = 7000;
+
+  recordingDir = [
+    "/mnt/tv/recordings"
+    "/mnt/tv/archive"
+  ];
+  captureDir = [ "/var/lib/konomitv/capture" ];
+
+  extraSettings.general.program_update_interval = 10.0;
+};
+```
 
 ドライバー定義は `hardware.dtv` に集約しています。`hardware.dtv.px4_drv.enable` でカーネルドライバーを有効化し、BonDriverは `hardware.dtv.bondriver.<driver name>` に定義します。各定義は `package`、実バイナリへの絶対パス `driverPath`、INIへ書き出す `settings`、既存INIファイルを指定する `settingsFile` を持ちます。`mirakc` は同梱パッケージと、そのパッケージ内の `BonDriver_LinuxMirakc.so` を参照する定義です。INI設定の既定値は全ドライバー共通で `null` です。
 

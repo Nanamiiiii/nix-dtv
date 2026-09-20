@@ -8,12 +8,31 @@
 let
   cfg = config.services.konomitv;
   yaml = pkgs.formats.yaml { };
-  generatedSettings = lib.recursiveUpdate cfg.settings {
-    video.recorded_folders = [ cfg.recordingDir ];
-    capture.upload_folders = [ cfg.captureDir ];
+  managedSettings = {
+    general = {
+      backend = if cfg.backend == "mirakurun" then "Mirakurun" else cfg.backend;
+      always_receive_tv_from_mirakurun = cfg.streamFromMirakurun;
+      edcb_url = cfg.edcbUrl;
+      mirakurun_url = cfg.mirakurunUrl;
+      encoder = cfg.encoder;
+    };
+    server.port = cfg.serverPort;
+    video.recorded_folders = cfg.recordingDir;
+    capture.upload_folders = cfg.captureDir;
   };
+  generatedSettings = lib.recursiveUpdate (lib.recursiveUpdate {
+    video.exclude_scan_paths = [ ];
+  } cfg.extraSettings) managedSettings;
   configFile = yaml.generate "konomitv-config.yaml" generatedSettings;
   hostRootTarget = path: "/host-rootfs${path}";
+  encoderDevices = lib.optionals (lib.elem cfg.encoder [
+    "QSVEncC"
+    "VCEEncC"
+  ]) [ "/dev/dri/:/dev/dri/" ];
+  containerDevices = lib.unique (encoderDevices ++ cfg.devices);
+  encoderExtraOptions = lib.optionals (cfg.encoder == "NVEncC") [
+    "--gpus=all,capabilities=compute,utility,video"
+  ];
 in
 {
   options.services.konomitv = {
@@ -26,8 +45,8 @@ in
     };
 
     recordingDir = lib.mkOption {
-      type = lib.types.str;
-      default = "/mnt/tv/recordings";
+      type = lib.types.listOf lib.types.str;
+      default = [ "/mnt/tv/recordings" ];
       description = "Host recording directory, mounted read-only.";
     };
 
@@ -44,50 +63,76 @@ in
     };
 
     captureDir = lib.mkOption {
-      type = lib.types.str;
-      default = "/var/lib/konomitv/capture";
+      type = lib.types.listOf lib.types.str;
+      default = [ "/var/lib/konomitv/capture" ];
       description = "Writable capture upload directory.";
     };
 
     devices = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ ];
-      example = [ "/dev/dri:/dev/dri" ];
-      description = "Additional host devices passed to the container.";
+      example = [ "/dev/video0:/dev/video0" ];
+      description = "Additional host devices passed to the container, in addition to devices selected by the encoder option.";
     };
 
-    settings = lib.mkOption {
+    backend = lib.mkOption {
+      type = lib.types.enum [
+        "EDCB"
+        "mirakurun"
+      ];
+      default = "EDCB";
+      description = "Tuner backend application.";
+    };
+
+    streamFromMirakurun = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Use mirakurun as stream backend instead of EDCB.";
+    };
+
+    edcbUrl = lib.mkOption {
+      type = lib.types.str;
+      default = "tcp://127.0.0.1:4510/";
+      description = "Url to access EDCB";
+    };
+
+    mirakurunUrl = lib.mkOption {
+      type = lib.types.str;
+      default = "http://127.0.0.1:40772/";
+      description = "Url to access mirakurun.";
+    };
+
+    encoder = lib.mkOption {
+      type = lib.types.enum [
+        "FFmpeg"
+        "QSVEncC"
+        "NVEncC"
+        "VCEEncC"
+      ];
+      default = "FFmpeg";
+      description = "Video encoder.";
+    };
+
+    serverPort = lib.mkOption {
+      type = lib.types.port;
+      default = 7000;
+      example = 7000;
+      description = "Server port konomitv listens on.";
+    };
+
+    extraSettings = lib.mkOption {
       type = yaml.type;
       default = { };
       example = {
-        general = {
-          backend = "EDCB";
-          always_receive_tv_from_mirakurun = true;
-          edcb_url = "tcp://127.0.0.1:4510/";
-          mirakurun_url = "http://127.0.0.1:40772/";
-          encoder = "FFmpeg";
-        };
-        server.port = 7000;
-        tv = { };
+        general.program_update_interval = 5.0;
         video.exclude_scan_paths = [ ];
-        capture = { };
       };
-      description = "KonomiTV config.yaml settings. Recording and capture folders are managed by dedicated options.";
+      description = "Additional KonomiTV config.yaml settings. Values managed by dedicated options take precedence.";
     };
   };
 
   config = lib.mkIf cfg.enable {
-    services.konomitv.settings = {
-      general = {
-        backend = lib.mkDefault "EDCB";
-        always_receive_tv_from_mirakurun = lib.mkDefault true;
-        edcb_url = lib.mkDefault "tcp://127.0.0.1:4510/";
-        mirakurun_url = lib.mkDefault "http://127.0.0.1:40772/";
-        encoder = lib.mkDefault "FFmpeg";
-      };
-      server.port = lib.mkDefault 7000;
-      video.exclude_scan_paths = lib.mkDefault [ ];
-    };
+    hardware.nvidia-container-toolkit.enable = lib.mkIf (cfg.encoder == "NVEncC") (lib.mkDefault true);
 
     virtualisation.docker.enable = true;
     virtualisation.oci-containers.backend = "docker";
@@ -96,20 +141,23 @@ in
       autoStart = true;
       volumes = [
         "${configFile}:/code/config.yaml:ro"
-        "${cfg.recordingDir}:${hostRootTarget cfg.recordingDir}:ro"
-        "${cfg.captureDir}:${hostRootTarget cfg.captureDir}:rw"
+      ]
+      ++ map (path: "${path}:${hostRootTarget path}:ro") cfg.recordingDir
+      ++ map (path: "${path}:${hostRootTarget path}:rw") cfg.captureDir
+      ++ [
         "${cfg.dataDir}:/code/server/data:rw"
         "${cfg.logDir}:/code/server/logs:rw"
       ];
-      extraOptions = [ "--network=host" ] ++ map (device: "--device=${device}") cfg.devices;
+      devices = containerDevices;
+      extraOptions = [ "--network=host" ] ++ encoderExtraOptions;
     };
 
     systemd.tmpfiles.rules = [
       "d /var/lib/konomitv 0750 root root - -"
       "d ${cfg.dataDir} 0750 root root - -"
       "d ${cfg.logDir} 0750 root root - -"
-      "d ${cfg.captureDir} 0750 root root - -"
-    ];
+    ]
+    ++ map (path: "d ${path} 0750 root root - -") cfg.captureDir;
 
     systemd.services.docker-konomitv = {
       after = [

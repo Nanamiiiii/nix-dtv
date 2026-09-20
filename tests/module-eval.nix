@@ -41,7 +41,28 @@ let
         };
         hardware.dtv.bondriver.custom.settings.GLOBAL.PRIORITY = 7;
         hardware.dtv.bondriver.custom.settingsFile = customSettingsFile;
-        services.konomitv.settings.server.port = 7100;
+        services.konomitv = {
+          recordingDir = [
+            "/mnt/tv/recordings"
+            "/srv/tv/archive"
+          ];
+          captureDir = [
+            "/var/lib/konomitv/capture"
+            "/srv/tv/capture"
+          ];
+          backend = "mirakurun";
+          streamFromMirakurun = true;
+          edcbUrl = "tcp://127.0.0.1:4511/";
+          mirakurunUrl = "http://127.0.0.1:40773/";
+          encoder = "QSVEncC";
+          devices = [ "/dev/video0:/dev/video0" ];
+          serverPort = 7100;
+          extraSettings = {
+            general.program_update_interval = 10.0;
+            server.port = 7200;
+            video.exclude_scan_paths = [ "/mnt/tv/recordings/tmp" ];
+          };
+        };
       }
     ];
   };
@@ -119,6 +140,20 @@ let
   unmanagedSettings = evaluated.extendModules {
     modules = [ { services.edcb.settings = nixpkgs.lib.mkForce null; } ];
   };
+  ffmpegEncoder = evaluated.extendModules {
+    modules = [ { services.konomitv.encoder = nixpkgs.lib.mkForce "FFmpeg"; } ];
+  };
+  vceEncoder = evaluated.extendModules {
+    modules = [ { services.konomitv.encoder = nixpkgs.lib.mkForce "VCEEncC"; } ];
+  };
+  nvencEncoder = evaluated.extendModules {
+    modules = [
+      {
+        services.konomitv.encoder = nixpkgs.lib.mkForce "NVEncC";
+        hardware.nvidia-container-toolkit.suppressNvidiaDriverAssertion = true;
+      }
+    ];
+  };
   srvIni =
     config:
     nixpkgs.lib.last (
@@ -129,6 +164,13 @@ let
       )
     );
   konomitvVolumes = cfg.virtualisation.oci-containers.containers.konomitv.volumes;
+  konomitvDevices = config: config.virtualisation.oci-containers.containers.konomitv.devices;
+  konomitvOptions = config: config.virtualisation.oci-containers.containers.konomitv.extraOptions;
+  konomitvConfig = nixpkgs.lib.removeSuffix ":/code/config.yaml:ro" (
+    nixpkgs.lib.findFirst (nixpkgs.lib.hasSuffix ":/code/config.yaml:ro")
+      (throw "missing KonomiTV config.yaml mount")
+      konomitvVolumes
+  );
 in
 assert nixpkgs.lib.any (
   a: !a.assertion && nixpkgs.lib.hasInfix "undefined hardware.dtv.bondriver" a.message
@@ -182,7 +224,11 @@ assert builtins.elem cfg.hardware.dtv.px4_drv.package cfg.services.udev.packages
 assert
   !(nixpkgs.lib.any (nixpkgs.lib.hasInfix "BonDriver_Unselected.so") cfg.systemd.tmpfiles.rules);
 assert cfg.services.edcb.recordingDir == "/mnt/tv/recordings";
-assert cfg.services.konomitv.recordingDir == "/mnt/tv/recordings";
+assert
+  cfg.services.konomitv.recordingDir == [
+    "/mnt/tv/recordings"
+    "/srv/tv/archive"
+  ];
 assert cfg.users.users.mirakurun.group == "video";
 assert cfg.services.mirakurun.allowSmartCardAccess;
 assert cfg.services.pcscd.enable;
@@ -223,40 +269,82 @@ assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/lib/BonDriver_Custom
   cfg.systemd.tmpfiles.rules;
 assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/lib/BonDriver_Custom.so.ini ")
   cfg.systemd.tmpfiles.rules;
-assert cfg.services.konomitv.settings.general.always_receive_tv_from_mirakurun;
+assert cfg.services.konomitv.extraSettings.general.program_update_interval == 10.0;
 assert builtins.elem "/mnt/tv/recordings:/host-rootfs/mnt/tv/recordings:ro" konomitvVolumes;
+assert builtins.elem "/srv/tv/archive:/host-rootfs/srv/tv/archive:ro" konomitvVolumes;
+assert builtins.elem "/var/lib/konomitv/capture:/host-rootfs/var/lib/konomitv/capture:rw"
+  konomitvVolumes;
+assert builtins.elem "/srv/tv/capture:/host-rootfs/srv/tv/capture:rw" konomitvVolumes;
+assert nixpkgs.lib.any (nixpkgs.lib.hasPrefix "d /srv/tv/capture ") cfg.systemd.tmpfiles.rules;
 assert cfg.virtualisation.oci-containers.backend == "docker";
-pkgs.runCommand "nix-dtv-module-eval" { nativeBuildInputs = [ pkgs.python3 ]; } ''
-  python <<'PYTHON'
-  import configparser
+assert builtins.elem "/dev/dri/:/dev/dri/" (konomitvDevices cfg);
+assert builtins.elem "/dev/video0:/dev/video0" (konomitvDevices cfg);
+assert !(builtins.elem "--gpus=all,capabilities=compute,utility,video" (konomitvOptions cfg));
+assert !(builtins.elem "/dev/dri/:/dev/dri/" (konomitvDevices ffmpegEncoder.config));
+assert builtins.elem "/dev/video0:/dev/video0" (konomitvDevices ffmpegEncoder.config);
+assert builtins.elem "/dev/dri/:/dev/dri/" (konomitvDevices vceEncoder.config);
+assert builtins.elem "--gpus=all,capabilities=compute,utility,video" (
+  konomitvOptions nvencEncoder.config
+);
+assert !(builtins.elem "/dev/dri/:/dev/dri/" (konomitvDevices nvencEncoder.config));
+assert nvencEncoder.config.hardware.nvidia-container-toolkit.enable;
+pkgs.runCommand "nix-dtv-module-eval"
+  {
+    nativeBuildInputs = [ (pkgs.python3.withPackages (pythonPackages: [ pythonPackages.pyyaml ])) ];
+  }
+  ''
+    python <<'PYTHON'
+    import configparser
+    import yaml
 
-  def read(path):
-      ini = configparser.ConfigParser()
-      ini.optionxform = str
-      ini.read(path)
-      return ini
+    def read(path):
+        ini = configparser.ConfigParser()
+        ini.optionxform = str
+        ini.read(path)
+        return ini
 
-  ini = read("${srvIni cfg}")
-  assert dict(ini["TVTEST"]) == {"Num": "2", "0": "BonDriver_LinuxMirakc.so", "1": "BonDriver_Custom.so"}
-  for name, priority in [("BonDriver_LinuxMirakc.so", "0"), ("BonDriver_Custom.so", "1")]:
-      assert dict(ini[name]) == {"Count": "1", "GetEpg": "1", "EPGCount": "1", "Priority": priority}
-  assert "BonDriver_Unselected.so" not in ini
-  assert ini["SET"]["SaveLog"] == "1"
+    ini = read("${srvIni cfg}")
+    assert dict(ini["TVTEST"]) == {"Num": "2", "0": "BonDriver_LinuxMirakc.so", "1": "BonDriver_Custom.so"}
+    for name, priority in [("BonDriver_LinuxMirakc.so", "0"), ("BonDriver_Custom.so", "1")]:
+        assert dict(ini[name]) == {"Count": "1", "GetEpg": "1", "EPGCount": "1", "Priority": priority}
+    assert "BonDriver_Unselected.so" not in ini
+    assert ini["SET"]["SaveLog"] == "1"
 
-  empty = read("${srvIni emptyDrivers.config}")
-  assert dict(empty["TVTEST"]) == {"Num": "0"}
-  assert not any(section.startswith("BonDriver") for section in empty.sections())
+    empty = read("${srvIni emptyDrivers.config}")
+    assert dict(empty["TVTEST"]) == {"Num": "0"}
+    assert not any(section.startswith("BonDriver") for section in empty.sections())
 
-  reordered = read("${srvIni reorderedDrivers.config}")
-  assert dict(reordered["TVTEST"]) == {"Num": "2", "0": "BonDriver_Custom.so", "1": "BonDriver_LinuxMirakc.so"}
-  assert reordered["BonDriver_Custom.so"]["Priority"] == "0"
-  assert reordered["BonDriver_LinuxMirakc.so"]["Priority"] == "1"
+    reordered = read("${srvIni reorderedDrivers.config}")
+    assert dict(reordered["TVTEST"]) == {"Num": "2", "0": "BonDriver_Custom.so", "1": "BonDriver_LinuxMirakc.so"}
+    assert reordered["BonDriver_Custom.so"]["Priority"] == "0"
+    assert reordered["BonDriver_LinuxMirakc.so"]["Priority"] == "1"
 
-  overridden = read("${srvIni overriddenTuners.config}")
-  assert overridden["TVTEST"]["Num"] == "1"
-  assert overridden["TVTEST"]["0"] == "BonDriver_Custom.so"
-  assert dict(overridden["BonDriver_LinuxMirakc.so"]) == {"Count": "4", "GetEpg": "0", "EPGCount": "2", "Priority": "7"}
-  assert overridden["BonDriver_Custom.so"]["Count"] == "1"
-  PYTHON
-  touch "$out"
-''
+    overridden = read("${srvIni overriddenTuners.config}")
+    assert overridden["TVTEST"]["Num"] == "1"
+    assert overridden["TVTEST"]["0"] == "BonDriver_Custom.so"
+    assert dict(overridden["BonDriver_LinuxMirakc.so"]) == {"Count": "4", "GetEpg": "0", "EPGCount": "2", "Priority": "7"}
+    assert overridden["BonDriver_Custom.so"]["Count"] == "1"
+
+    with open("${konomitvConfig}", encoding="utf-8") as file:
+        konomitv = yaml.safe_load(file)
+
+    assert konomitv["general"] == {
+        "backend": "Mirakurun",
+        "always_receive_tv_from_mirakurun": True,
+        "edcb_url": "tcp://127.0.0.1:4511/",
+        "mirakurun_url": "http://127.0.0.1:40773/",
+        "encoder": "QSVEncC",
+        "program_update_interval": 10.0,
+    }
+    assert konomitv["server"]["port"] == 7100
+    assert konomitv["video"] == {
+        "recorded_folders": ["/mnt/tv/recordings", "/srv/tv/archive"],
+        "exclude_scan_paths": ["/mnt/tv/recordings/tmp"],
+    }
+    assert konomitv["capture"]["upload_folders"] == [
+        "/var/lib/konomitv/capture",
+        "/srv/tv/capture",
+    ]
+    PYTHON
+    touch "$out"
+  ''

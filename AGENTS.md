@@ -130,7 +130,10 @@ ISDBScanner は上流sourceをPythonで実行し、次をNix closureに含めて
 - native package化せず、公式 `ghcr.io/tsukumijima/konomitv:latest` をNixOSの`virtualisation.oci-containers`とDocker backendで起動する。
 - host networkを使用する。
 - `config.yaml` はNixから生成してread-only mountし、Web UIでのserver config変更をsource of truthにしない。
-- recording directoryはread-only mount。capture/data/logsだけをread-write mountする。
+- `backend`、`streamFromMirakurun`、`edcbUrl`、`mirakurunUrl`、`encoder`、`serverPort` と各directory optionから `config.yaml` の主要項目を生成する。`extraSettings` はその他の項目を追加し、専用optionと同じキーでは専用optionを優先する。
+- `recordingDir` と `captureDir` は文字列リスト。録画directoryはすべてread-only mountし、capture directoryはすべてread-write mountする。data/logsもread-write mountする。
+- `encoder = "QSVEncC"` または `"VCEEncC"` では `/dev/dri/` をcontainerへ渡す。`"NVEncC"` では全NVIDIA GPUを `compute,utility,video` capability付きで渡し、`hardware.nvidia-container-toolkit.enable` を既定で有効にする。`"FFmpeg"` ではGPUを自動追加しない。`devices` は追加device用。
+- `services.dtv.recordingDir` はKonomiTVの `recordingDir` に1要素のリストとして伝播する。
 - upstream imageとの互換性を優先し、containerは現在rootで実行する。
 
 ## 既存Docker版Mirakurun設定との互換性
