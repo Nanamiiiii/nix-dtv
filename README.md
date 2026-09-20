@@ -10,7 +10,7 @@ physical tuner -> px4_drv -> Mirakurun -> BonDriver_LinuxMirakc -> EDCB
 
 ## 提供するもの
 
-- `packages.<system>.px4_drv`: tsukumijima/px4_drv の kernel module、firmware、udev rule
+- `packages.<system>.px4_drv`: tsukumijima/px4_drv v0.6.0 の kernel module、firmware、udev rule
 - `packages.<system>.mirakurun`: Node.js 22 でビルドする native Mirakurun
 - `packages.<system>.recisdb`: 最新 commit を固定した recisdb unstable（chardev / DVBv5、ARIB STD-B25 対応）
 - `packages.<system>.isdb-scanner`: 最新 release を固定した ISDBScanner（recisdb を実行時依存に含む）
@@ -229,6 +229,7 @@ BonDriver_LinuxMirakc upstream は Mirakurun では未テストと明記して�
 ```console
 nix flake check
 nix build .#checks.x86_64-linux.integration
+nix build .#px4_drv
 nix build .#mirakurun
 nix build .#recisdb
 nix build .#isdb-scanner

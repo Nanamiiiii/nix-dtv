@@ -5,6 +5,7 @@
   system,
 }:
 {
+  px4_drv-package = pkgs.nix-dtv.px4_drv;
   recisdb-package = pkgs.nix-dtv.recisdb;
   isdb-scanner-package = pkgs.nix-dtv.isdb-scanner;
   edcb-material-webui-package = pkgs.nix-dtv.edcb-material-webui;

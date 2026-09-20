@@ -53,11 +53,11 @@ tests/{default,module-eval,mirakurun,edcb,integration}.nix
 
 ## package の固定値と方針
 
-2026-09-14 時点の固定値です。
+2026-09-20 時点の固定値です。
 
 | package | version / revision | 方針 |
 | --- | --- | --- |
-| px4_drv | `0.5.6-unstable-2026-07-26`, `9eedea8c502875a788697984b93b50032339b9aa` | `tsukumijima/px4_drv` を対象kernelでbuild |
+| px4_drv | `0.6.0` / tag `v0.6.0`, `6238187cbd2f334aec55d078fe58eaac7c255125` | `tsukumijima/px4_drv` を対象kernelでbuild |
 | Mirakurun | `4.1.3`, `5770073e9b30d523512858ca82f45386f51a08fd` | Node.js 22 native package。Dockerは使わない |
 | recisdb | `1.2.4-unstable-2026-08-22`, `d4210d1540d3003c23d7138357a1e4b91794e767` | default branchの最新commitを固定するunstable package |
 | ISDBScanner | `1.3.3` / tag `v1.3.3` | GitHubの最新releaseを固定 |
@@ -164,8 +164,9 @@ ISDBScanner は上流sourceをPythonで実行し、次をNix closureに含めて
 
 ## 検証状況
 
-2026-09-13 時点で次を確認済みです。
+2026-09-20 時点で次を確認済みです。
 
+- px4_drv 0.6.0 のx86_64-linux build成功（Linux 6.18.49）。
 - recisdbのx86_64-linux build成功、`recisdb --version` は`1.2.4`。
 - ISDBScannerのx86_64-linux build成功、`isdb-scanner --version` は`1.3.3`。
 - `nix flake check`成功。
@@ -180,6 +181,7 @@ ISDBScanner は上流sourceをPythonで実行し、次をNix closureに含めて
 nix fmt
 nix flake check
 nix flake check --all-systems --no-build
+nix build .#px4_drv
 nix build .#recisdb
 nix build .#isdb-scanner
 nix build .#edcb-material-webui
