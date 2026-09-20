@@ -209,7 +209,6 @@ in
           "0Select" = 1;
           "0BasicOnlyFlags" = 14;
         };
-        "BonDriver_LinuxMirakc.so".Count = 4;
       };
       description = "Managed EpgTimerSrv.ini settings. Null leaves the file unmanaged. A non-null value receives integration defaults and TVTEST/tuner defaults for the selected BonDrivers; explicit settings take precedence.";
     };
