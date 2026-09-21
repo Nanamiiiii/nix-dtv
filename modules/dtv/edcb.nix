@@ -414,6 +414,8 @@ in
       message = "Selected BonDriver name must be a BonDriver*.so filename without path separators, whitespace or special characters.";
     }) selectedDrivers;
 
+    environment.systemPackages = [ cfg.package ];
+
     users.groups.${cfg.recordingGroup} = { };
 
     users.groups.edcb = { };
