@@ -108,7 +108,7 @@ let
   defaultDtv = nixpkgs.lib.nixosSystem {
     inherit system;
     modules = [
-      self.nixosModules.dtv
+      self.nixosModules.nix-dtv
       {
         services.dtv.enable = true;
         services.dtv.edcb.enable = true;
@@ -167,7 +167,7 @@ let
   webUIWithDefaultSettings = nixpkgs.lib.nixosSystem {
     inherit system;
     modules = [
-      self.nixosModules.edcb
+      self.nixosModules.nix-dtv
       {
         services.edcb.enable = true;
         services.edcb.materialWebUI.enable = true;
@@ -180,7 +180,7 @@ let
   webUIWithUnmanagedSettings = nixpkgs.lib.nixosSystem {
     inherit system;
     modules = [
-      self.nixosModules.edcb
+      self.nixosModules.nix-dtv
       {
         services.edcb.enable = true;
         services.edcb.materialWebUI.enable = true;
@@ -296,6 +296,7 @@ assert nixpkgs.lib.any (
 assert !(cfg.hardware ? dtv);
 assert defaultDtv.config.services.edcb.bondriver == [ ];
 assert defaultDtv.pkgs ? nix-dtv;
+assert !withCustomOverlay.config.services.dtv.enable;
 assert withCustomOverlay.pkgs ? nix-dtv;
 assert withCustomOverlay.pkgs.dtvTestOverlay;
 assert withCustomOverlay.pkgs.mirakurun == withCustomOverlay.config.services.mirakurun.package;

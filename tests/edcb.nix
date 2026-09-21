@@ -37,7 +37,7 @@ pkgs.testers.runNixOSTest {
   node.pkgsReadOnly = false;
   name = "edcb-module";
   nodes.machine = {
-    imports = [ self.nixosModules.edcb ];
+    imports = [ self.nixosModules.nix-dtv ];
     services.edcb = {
       enable = true;
       package = fakeEdcb;

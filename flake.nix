@@ -31,12 +31,8 @@
       );
 
       nixosModules = {
-        default = import ./modules;
-        dtv = import ./modules/dtv.nix;
-        px4_drv = import ./modules/px4_drv.nix;
-        mirakurun = import ./modules/mirakurun.nix;
-        edcb = import ./modules/edcb.nix;
-        konomitv = import ./modules/konomitv.nix;
+        nix-dtv = import ./modules/dtv;
+        default = self.nixosModules.nix-dtv;
       };
 
       checks = forAllSystems (

@@ -18,13 +18,13 @@ physical tuner -> px4_drv -> Mirakurun -> BonDriver_LinuxMirakc -> EDCB
 - `packages.<system>.edcb-material-webui`: EMWUI 3 の E3 ブランチを固定した Web UI
 - `packages.<system>.bondriver-linux-mirakc`: picojson を含む native BonDriver `.so`
 - `overlays.default`: 上記を `pkgs.nix-dtv` 以下へ追加する overlay
-- `nixosModules.{default,dtv,px4_drv,mirakurun,edcb,konomitv}`
+- `nixosModules.{default,nix-dtv}`: 全 module を import する統合入口
 
 px4_drv に含まれる udev rule は upstream と同じ `root:video`, mode `0664` です。
 
 ## 使用例
 
-`nixosModules.default` / `nixosModules.dtv` の import だけで overlay も適用され、NixOS module 引数の `pkgs.nix-dtv` を参照できます。利用側の `nixpkgs.overlays` とも結合されます。flake の外側で別途 import した `pkgs` や `specialArgs.pkgs` には反映されないため、module 引数の `pkgs` を使ってください。
+`nixosModules.default` / `nixosModules.nix-dtv` の import だけで overlay も適用され、NixOS module 引数の `pkgs.nix-dtv` を参照できます。利用側の `nixpkgs.overlays` とも結合されます。個別 module の import は不要で、`services.dtv.enable` を使わず各サービスの option を直接設定することもできます。flake の外側で別途 import した `pkgs` や `specialArgs.pkgs` には反映されないため、module 引数の `pkgs` を使ってください。
 
 ```nix
 {

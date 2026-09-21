@@ -17,7 +17,7 @@ pkgs.testers.runNixOSTest {
   node.pkgsReadOnly = false;
   name = "mirakurun-module";
   nodes.machine = {
-    imports = [ self.nixosModules.mirakurun ];
+    imports = [ self.nixosModules.nix-dtv ];
     security.polkit.enable = true;
     services.pcscd.enable = true;
     services.mirakurun = {

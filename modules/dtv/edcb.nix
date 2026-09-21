@@ -181,14 +181,12 @@ let
   ];
 in
 {
-  imports = [ ./overlay.nix ];
-
   options.services.edcb = {
     enable = lib.mkEnableOption "Linux-native EDCB EpgTimerSrv";
 
     package = lib.mkOption {
       type = lib.types.package;
-      default = pkgs.nix-dtv.edcb or (pkgs.callPackage ../pkgs/edcb { });
+      default = pkgs.nix-dtv.edcb or (pkgs.callPackage ../../pkgs/edcb { });
       defaultText = lib.literalExpression "pkgs.nix-dtv.edcb";
       description = "EDCB package to run.";
     };
@@ -290,7 +288,7 @@ in
 
       package = lib.mkOption {
         type = lib.types.package;
-        default = pkgs.nix-dtv.edcb-material-webui or (pkgs.callPackage ../pkgs/edcb-material-webui { });
+        default = pkgs.nix-dtv.edcb-material-webui or (pkgs.callPackage ../../pkgs/edcb-material-webui { });
         defaultText = lib.literalExpression "pkgs.nix-dtv.edcb-material-webui";
         description = "EMWUI 3 package to place in EDCB's HttpPublic and Setting directories.";
       };

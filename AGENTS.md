@@ -23,7 +23,7 @@ physical tuner
 
 - 対応 system は `x86_64-linux` と `aarch64-linux`。
 - overlay は全 package を `pkgs.nix-dtv` 以下に公開する。
-- `nixosModules.default` / `nixosModules.dtv` の import で overlay を自動適用する。`nixpkgs.overlays` は `mkDefault` にせず通常のリストとして利用側の overlay と結合する。Mirakurun の選択 package 用 overlay は `mkAfter` で適用する。外側で別途 import した `pkgs` や `specialArgs.pkgs` には反映されない。
+- `nixosModules.default` / `nixosModules.nix-dtv` の import で overlay を自動適用する。`nixpkgs.overlays` は `mkDefault` にせず通常のリストとして利用側の overlay と結合する。Mirakurun の選択 package 用 overlay は `mkAfter` で適用する。外側で別途 import した `pkgs` や `specialArgs.pkgs` には反映されない。
 - flake package の default は Mirakurun。
 - package:
   - `px4_drv`
@@ -34,12 +34,9 @@ physical tuner
   - `edcb-material-webui`
   - `bondriver-linux-mirakc`
 - NixOS module:
-  - `nixosModules.default`: 全 module を import する統合入口
-  - `nixosModules.dtv`: `services.dtv` convenience layer
-  - `nixosModules.px4_drv`: `hardware.px4_drv`
-  - `nixosModules.mirakurun`: `services.mirakurun`
-  - `nixosModules.edcb`: `services.edcb`
-  - `nixosModules.konomitv`: `services.konomitv`
+  - `nixosModules.nix-dtv`: 全 module と overlay を import する統合入口。`services.dtv` convenience layer と個別サービスの option を公開する。
+  - `nixosModules.default`: `nixosModules.nix-dtv` の別名。
+  - 個別 module の公開は廃止。`services.dtv.enable` が無効でも overlay は適用され、個別サービスを直接有効化できる。
 
 主なファイル:
 
@@ -47,7 +44,8 @@ physical tuner
 flake.nix
 pkgs/default.nix
 pkgs/{px4_drv,mirakurun,recisdb,isdb-scanner,edcb,edcb-material-webui,bondriver-linux-mirakc}/default.nix
-modules/{default,dtv,overlay,px4_drv,mirakurun,edcb,konomitv}.nix
+modules/dtv/{default,px4_drv,mirakurun,edcb,konomitv}.nix
+overlays/default.nix
 tests/{default,module-eval,mirakurun,edcb,integration}.nix
 ```
 
