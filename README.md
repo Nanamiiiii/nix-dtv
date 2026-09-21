@@ -69,7 +69,6 @@ px4_drv に含まれる udev rule は upstream と同じ `root:video`, mode `066
 
           services.edcb.bondriver = [
             {
-              package = pkgs.bondriver-linux-mirakc;
               driverPath = "${pkgs.bondriver-linux-mirakc}/lib/BonDriver_LinuxMirakc.so";
               tunerSettings.Count = 1; # 実機のチューナー数に合わせる
             }
@@ -160,7 +159,7 @@ services.konomitv = {
 
 KonomiTV の接続 URL は `edcbHost` / `edcbPort` から `tcp://<host>:<port>/`、`mirakurunHost` / `mirakurunPort` から `http://<host>:<port>/` を生成します。host の既定値はいずれも `127.0.0.1`、port の既定値はそれぞれ `services.edcb.tcpPort` と `services.mirakurun.port` に追従します。
 
-`hardware.px4_drv.enable` でカーネルドライバーを有効化します。BonDriver は `services.edcb.bondriver` に定義のリストを指定します。各定義は `package`、実バイナリへの絶対パス `driverPath`、配置名 `name`、ドライバーINI用の `settings` と `settingsFile`、`EpgTimerSrv.ini` 用の `tunerSettings` を持ちます。`name` の既定値は `driverPath` の末尾のファイル名です。同梱の BonDriver_LinuxMirakc は `$out/lib/BonDriver_LinuxMirakc.so` に配置されます。
+`hardware.px4_drv.enable` でカーネルドライバーを有効化します。BonDriver は `services.edcb.bondriver` に定義のリストを指定します。各定義は実バイナリへの絶対パス `driverPath`、配置名 `name`、ドライバーINI用の `settings` と `settingsFile`、`EpgTimerSrv.ini` 用の `tunerSettings` を持ちます。`name` の既定値は `driverPath` の末尾のファイル名です。`package` option は廃止し、`driverPath = "${pkgs.bondriver-linux-mirakc}/lib/BonDriver_LinuxMirakc.so";` のように package を参照します。この参照で依存関係を保持し、パスの変更を EDCB の再起動トリガーにします。同梱の BonDriver_LinuxMirakc は `$out/lib/BonDriver_LinuxMirakc.so` に配置されます。
 
 EDCB はリストの全定義を順に参照し、`name` で本体を `/var/lib/edcb/lib/` にリンクします。`settingsFile`（既定値 `null`）が指定されていれば、そのファイルへのリンクを `<name>.ini` として隣に配置します。`settingsFile` は `settings` より優先されます。`settingsFile` が `null` の場合は `settings` からINIを生成し、両方 `null` ならINIを管理しません。同じ `driverPath` でも異なる `name` を指定すれば複数配置できます。`name` の重複はエラーです。`services.edcb.bondriver` の既定値は空リストで、`services.dtv` からも自動追加しません。使用するドライバーをホスト側で明示してください。以下は `config`、`lib`、`pkgs` を受け取る NixOS module 内の例です。
 
@@ -168,7 +167,6 @@ EDCB はリストの全定義を順に参照し、`name` で本体を `/var/lib/
 hardware.px4_drv.enable = true;
 services.edcb.bondriver = [
   {
-    package = pkgs.bondriver-linux-mirakc;
     name = "BonDriver_LinuxMirakc.so";
     driverPath = lib.mkDefault "${pkgs.bondriver-linux-mirakc}/lib/BonDriver_LinuxMirakc.so";
     settings.GLOBAL = {
@@ -185,13 +183,11 @@ services.edcb.bondriver = [
     };
   }
   {
-    package = pkgs.myBonDriver;
     driverPath = "${pkgs.myBonDriver}/lib/BonDriver_Custom.so";
     settings.GLOBAL.PRIORITY = 7;
     tunerSettings.Count = 2;
   }
   {
-    package = pkgs.myBonDriver;
     driverPath = "${pkgs.myBonDriver}/lib/BonDriver_Custom.so";
     name = "BonDriver_Custom_2.so";
     settings.GLOBAL.PRIORITY = 8;

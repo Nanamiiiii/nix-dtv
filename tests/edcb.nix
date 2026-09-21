@@ -48,7 +48,6 @@ pkgs.testers.runNixOSTest {
       };
       bondriver = [
         {
-          package = fakeBonDriver;
           driverPath = "${fakeBonDriver}/lib/BonDriver_LinuxMirakc.so";
           settings.GLOBAL.PRIORITY = 5;
           tunerSettings = {
@@ -58,21 +57,18 @@ pkgs.testers.runNixOSTest {
           };
         }
         {
-          package = fakeCustomBonDriver;
           driverPath = "${fakeCustomBonDriver}/other/BonDriver_Custom.so";
           settings.GLOBAL.PRIORITY = 7;
           settingsFile = customSettingsFile;
           tunerSettings.Count = 2;
         }
         {
-          package = fakeCustomBonDriver;
           driverPath = "${fakeCustomBonDriver}/other/BonDriver_Custom.so";
           name = "BonDriver_Custom_2.so";
           settings.GLOBAL.PRIORITY = 8;
           tunerSettings.Count = 3;
         }
         {
-          package = fakeCustomBonDriver;
           driverPath = "${fakeCustomBonDriver}/other/BonDriver_FileOnly.so";
           settingsFile = customSettingsFile;
         }

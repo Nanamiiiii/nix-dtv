@@ -36,7 +36,6 @@ let
         services.edcb.recNameMacroSettings.SET.Macro = "$ZtoH(Title)$.ts";
         services.edcb.bondriver = [
           {
-            package = pkgs.bondriver-linux-mirakc;
             driverPath = "${pkgs.bondriver-linux-mirakc}/lib/BonDriver_LinuxMirakc.so";
             settings.GLOBAL.PRIORITY = 5;
             tunerSettings = {
@@ -46,7 +45,6 @@ let
             };
           }
           {
-            package = fakeCustomBonDriver;
             driverPath = "${fakeCustomBonDriver}/other/BonDriver_Custom.so";
             settings.GLOBAL.PRIORITY = 7;
             settingsFile = customSettingsFile;
@@ -138,7 +136,6 @@ let
         services.edcb.bondriver = nixpkgs.lib.mkForce [
           (builtins.elemAt cfg.services.edcb.bondriver 1)
           {
-            package = fakeCustomBonDriver;
             driverPath = "${fakeCustomBonDriver}/another/BonDriver_Custom.so";
           }
         ];
@@ -151,7 +148,6 @@ let
         services.edcb.bondriver = nixpkgs.lib.mkForce [
           (builtins.elemAt cfg.services.edcb.bondriver 1)
           {
-            package = fakeCustomBonDriver;
             driverPath = "${fakeCustomBonDriver}/other/BonDriver_Custom.so";
             name = "BonDriver_Custom_2.so";
             settings.GLOBAL.PRIORITY = 8;
@@ -489,7 +485,9 @@ assert (builtins.elemAt cfg.services.edcb.bondriver 0).settings.GLOBAL.PRIORITY 
 assert !((builtins.elemAt cfg.services.edcb.bondriver 0).settings.GLOBAL ? SERVER_HOST);
 assert !((builtins.elemAt cfg.services.edcb.bondriver 0).settings.GLOBAL ? DECODE_B25);
 assert (builtins.elemAt cfg.services.edcb.bondriver 1).settings.GLOBAL.PRIORITY == 7;
-assert (builtins.elemAt cfg.services.edcb.bondriver 1).package == fakeCustomBonDriver;
+assert builtins.all (
+  driver: builtins.elem driver.driverPath cfg.systemd.services.edcb.restartTriggers
+) cfg.services.edcb.bondriver;
 assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/lib/BonDriver_LinuxMirakc.so ")
   cfg.systemd.tmpfiles.rules;
 assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/lib/BonDriver_Custom.so ")

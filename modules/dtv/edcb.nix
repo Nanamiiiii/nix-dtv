@@ -310,14 +310,9 @@ in
           { config, ... }:
           {
             options = {
-              package = lib.mkOption {
-                type = lib.types.package;
-                description = "Package providing this BonDriver.";
-              };
-
               driverPath = lib.mkOption {
                 type = lib.types.str;
-                description = "Absolute path to the BonDriver shared library, normally inside package.";
+                description = "Absolute path to the BonDriver shared library, normally inside the Nix store.";
               };
 
               name = lib.mkOption {
@@ -513,7 +508,6 @@ in
       wants = [ "mirakurun.service" ];
       restartTriggers =
         map (file: file.source) configuredIniFiles
-        ++ map (driver: driver.package) selectedDrivers
         ++ map (driver: driver.driverPath) selectedDrivers
         ++ lib.optional cfg.materialWebUI.enable cfg.materialWebUI.package;
       preStart = lib.optionalString cfg.materialWebUI.enable ''

@@ -21,7 +21,6 @@ pkgs.testers.runNixOSTest {
     services.edcb.materialWebUI.enable = true;
     services.edcb.bondriver = [
       {
-        package = pkgs.bondriver-linux-mirakc;
         driverPath = "${pkgs.bondriver-linux-mirakc}/lib/BonDriver_LinuxMirakc.so";
         tunerSettings = {
           Count = 1;

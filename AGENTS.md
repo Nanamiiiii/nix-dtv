@@ -106,7 +106,7 @@ ISDBScanner は上流sourceをPythonで実行し、次をNix closureに含めて
 
 - `services.edcb.openFirewallPorts` は既定で `false`。サービス有効時に `true` なら `tcpPort`、`httpPorts`、`httpsPorts` の全 TCP ポートを開放する。`settings` のサーバー有効・無効設定や `settings = null` には連動しない。
 - EDCBはWineではなくLinux nativeのEpgTimerSrvを `edcb:edcb` で実行する。
-- immutable binaryと`.so`はNix store、mutable settings/stateは `/var/lib/edcb`。BonDriverは `services.edcb.bondriver` の定義リストに `package`、実バイナリへの絶対パス `driverPath`、配置名 `name`、`settings`、`settingsFile`、`tunerSettings` を指定する。`name` の既定値は `driverPath` のbasename。`settingsFile` は既定値 `null`。指定されたファイルへのリンクをEDCB側で配置し、`settings` より優先する。両方 `null` ならINIは管理しない。BonDriver本体は `name` で `/var/lib/edcb/lib` にリンクし、INIは隣に `<name>.ini` として配置する。同じ `driverPath` でも異なる `name` を指定すれば複数配置できる。`name` の重複を検出する。同梱BonDriver_LinuxMirakcのビルド出力は `$out/lib/BonDriver_LinuxMirakc.so`。
+- immutable binaryと`.so`はNix store、mutable settings/stateは `/var/lib/edcb`。BonDriverは `services.edcb.bondriver` の定義リストに実バイナリへの絶対パス `driverPath`、配置名 `name`、`settings`、`settingsFile`、`tunerSettings` を指定する。`name` の既定値は `driverPath` のbasename。`settingsFile` は既定値 `null`。指定されたファイルへのリンクをEDCB側で配置し、`settings` より優先する。両方 `null` ならINIは管理しない。BonDriver本体は `name` で `/var/lib/edcb/lib` にリンクし、INIは隣に `<name>.ini` として配置する。同じ `driverPath` でも異なる `name` を指定すれば複数配置できる。`name` の重複を検出する。`package` option は廃止し、`driverPath = "${pkgs.bondriver-linux-mirakc}/lib/BonDriver_LinuxMirakc.so";` のように package を参照します。この参照で依存関係を保持し、パスの変更を EDCB の再起動トリガーにします。同梱BonDriver_LinuxMirakcのビルド出力は `$out/lib/BonDriver_LinuxMirakc.so`。
 - `services.edcb.bondriver` の既定値は空リスト。`services.dtv` からも自動追加せず、使用するドライバーをホスト側で明示する。
 - EDCB userはrecording group `dtv` にだけ追加する。
 - recording directories以外へ広いwrite権限を与えない。
