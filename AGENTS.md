@@ -126,7 +126,7 @@ ISDBScanner は上流sourceをPythonで実行し、次をNix closureに含めて
 - `services.edcb.materialWebUI.enable` は既定で `false`。有効時、固定した E3 package の `HttpPublic/E3` と `HttpPublic/api` を `/var/lib/edcb/HttpPublic` 以下にリンクする。
 - 無効化した場合は managed な `E3` と `api` の store link だけを削除し、mutable な設定ファイルは残す。
 - 上流のディレクトリ名は `Setting`（単数）。`Setting/HttpPublic.ini` と `Setting/XCODE_OPTIONS.lua` は `/var/lib/edcb/Setting` に初回だけ mutable なファイルとしてコピーし、既存値を上書きしない。INI は CP932 から UTF-8（BOMなし）に変換する。
-- Web UI のportは `httpPorts` と `httpsPorts` で指定する。既定値はHTTP `5510`、HTTPSなし。`EnableHttpSrv=1` とアクセス制御は `settings` の既定値に含まれ、`HttpNumThreads` などを明示する場合は必要な値を併記する。明示的な `settings = null` は管理対象外のまま。既定のアクセス制御は loopback とプライベートネットワークを許可する。
+- Web UI のportは `httpPorts` と `httpsPorts` で指定する。Material WebUI 無効時の既定値はHTTP `[ 5510 ]`、HTTPS `[ ]`。有効時はHTTP `[ 5510 5520 ]`、HTTPS `[ 5511 5521 ]`。明示したポートリストはそれぞれの既定値を置き換える。`EnableHttpSrv=1` とアクセス制御は `settings` の既定値に含まれ、`HttpNumThreads` などを明示する場合は必要な値を併記する。明示的な `settings = null` は管理対象外のまま。既定のアクセス制御は loopback とプライベートネットワークを許可する。
 - `edcb.service` は Web UI 有効時の初回起動前に `/var/lib/edcb/ssl_cert.pem`（自己署名証明書と秘密鍵）を `edcb:edcb`、mode `0600` で生成する。既存ファイルは上書きしない。SAN は localhost、127.0.0.1、NixOS ホスト名と `extraCertificateSubjectAltNames` を含む。SAN の変更で既存証明書は更新しない。
 - Linux 版 EDCB は OpenSSL 3 の `libssl.so.3` と `libcrypto.so.3` を動的に読み込むため、EDCB package は OpenSSL を closure と runtime rpath に含める。
 - EDCB package は Lua 5.2 を build input に含め、Lua ライブラリへの rpath を設定済み。WebUI 用に別の Lua interpreter は不要。E3 側には未設定の `NVRAM.ZIP` を連結すると失敗するため、空値を許す最小 patch を適用。

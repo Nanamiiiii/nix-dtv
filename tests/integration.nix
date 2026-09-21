@@ -19,14 +19,6 @@ pkgs.testers.runNixOSTest {
 
     services.mirakurun.tunerSettings = [ ];
     services.edcb.materialWebUI.enable = true;
-    services.edcb.httpPorts = [
-      5510
-      5520
-    ];
-    services.edcb.httpsPorts = [
-      5511
-      5521
-    ];
     services.edcb.bondriver = [
       {
         package = pkgs.nix-dtv.bondriver-linux-mirakc;

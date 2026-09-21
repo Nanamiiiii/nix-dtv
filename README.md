@@ -246,7 +246,7 @@ services.edcb = {
 };
 ```
 
-Web UI のポートは `httpPorts` と `httpsPorts` で指定します。既定値は HTTP `5510`、HTTPS なしです。例えば `httpPorts = [ 5510 5520 ]; httpsPorts = [ 5511 5521 ];` は `HttpPort=5510,5520,5511s,5521s` を生成します。`settings = null` を明示した場合は INI を管理しません。`EnableHttpSrv=1` と `HttpAccessControlList` は `settings` の既定値に含まれるため、`settings` を明示する場合は必要な値も指定してください。`HttpNumThreads=50` などを明示する場合も同様です。SSE用のポートを利用する場合は `Setting/HttpPublic.ini` の `useSsePort=1` を設定します。既定のアクセス制御は loopback とプライベートネットワークを許可するため、必要に応じてホスト側で絞り込んでください。
+Web UI のポートは `httpPorts` と `httpsPorts` で指定します。Material WebUI が無効な場合の既定値は HTTP `[ 5510 ]`、HTTPS `[ ]` です。有効な場合は既定値に HTTP `5520` と HTTPS `5511`・`5521` が追加され、 `HttpPort=5510,5520,5511s,5521s` を生成します。`httpPorts`・`httpsPorts` を明示した場合は、それぞれの既定値を置き換えます。`settings = null` を明示した場合は INI を管理しません。`EnableHttpSrv=1` と `HttpAccessControlList` は `settings` の既定値に含まれるため、`settings` を明示する場合は必要な値も指定してください。`HttpNumThreads=50` などを明示する場合も同様です。SSE用のポートを利用する場合は `Setting/HttpPublic.ini` の `useSsePort=1` を設定します。既定のアクセス制御は loopback とプライベートネットワークを許可するため、必要に応じてホスト側で絞り込んでください。
 
 EDCB service は初回起動時に自己署名証明書と秘密鍵を `/var/lib/edcb/ssl_cert.pem` に `edcb:edcb`、mode `0600` で生成します。既存ファイルは上書きしません。証明書には localhost、127.0.0.1、NixOS のホスト名を含め、追加のホスト名や IP アドレスは `extraCertificateSubjectAltNames` で指定します。変更後も既存証明書は維持されるので、SAN を変更する場合は証明書を再生成してください。利用端末では自己署名証明書を信頼する設定が必要です。Linux 版 EDCB が動的に読み込む OpenSSL 3 の `libssl.so.3` と `libcrypto.so.3` は package の closure と実行時検索パスに含めています。リモート視聴には別途トランスコーダーが必要です。
 

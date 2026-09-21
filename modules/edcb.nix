@@ -369,19 +369,24 @@ in
 
     httpPorts = lib.mkOption {
       type = lib.types.listOf lib.types.port;
-      default = [ 5510 ];
+      default = [ 5510 ] ++ lib.optional cfg.materialWebUI.enable 5520;
+      defaultText = lib.literalExpression "[ 5510 ] ++ lib.optional config.services.edcb.materialWebUI.enable 5520";
       example = [
         5510
-        5511
+        5520
       ];
       description = "HTTP ports for integrated civetweb.";
     };
 
     httpsPorts = lib.mkOption {
       type = lib.types.listOf lib.types.port;
-      default = [ ];
+      default = lib.optionals cfg.materialWebUI.enable [
+        5511
+        5521
+      ];
+      defaultText = lib.literalExpression "lib.optionals config.services.edcb.materialWebUI.enable [ 5511 5521 ]";
       example = [
-        5520
+        5511
         5521
       ];
       description = "HTTPS ports for integrated civetweb.";

@@ -174,6 +174,9 @@ let
       }
     ];
   };
+  withoutWebUIWithDefaultSettings = webUIWithDefaultSettings.extendModules {
+    modules = [ { services.edcb.materialWebUI.enable = nixpkgs.lib.mkForce false; } ];
+  };
   webUIWithUnmanagedSettings = nixpkgs.lib.nixosSystem {
     inherit system;
     modules = [
@@ -320,8 +323,18 @@ assert cfg.services.edcb.settingsImmutable;
 assert cfg.services.edcb.materialWebUI.enable;
 assert !webUIWithDefaultSettings.config.services.edcb.settingsImmutable;
 assert webUIWithDefaultSettings.config.services.edcb.tcpPort == 4510;
-assert webUIWithDefaultSettings.config.services.edcb.httpPorts == [ 5510 ];
-assert webUIWithDefaultSettings.config.services.edcb.httpsPorts == [ ];
+assert
+  webUIWithDefaultSettings.config.services.edcb.httpPorts == [
+    5510
+    5520
+  ];
+assert
+  webUIWithDefaultSettings.config.services.edcb.httpsPorts == [
+    5511
+    5521
+  ];
+assert withoutWebUIWithDefaultSettings.config.services.edcb.httpPorts == [ 5510 ];
+assert withoutWebUIWithDefaultSettings.config.services.edcb.httpsPorts == [ ];
 assert webUIWithDefaultSettings.config.services.edcb.settings.SET.EnableHttpSrv == 1;
 assert webUIWithUnmanagedSettings.config.services.edcb.settings == null;
 assert
