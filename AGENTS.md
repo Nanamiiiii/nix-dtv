@@ -23,6 +23,7 @@ physical tuner
 
 - 対応 system は `x86_64-linux` と `aarch64-linux`。
 - overlay は全 package を `pkgs.nix-dtv` 以下に公開する。
+- `nixosModules.default` / `nixosModules.dtv` の import で overlay を自動適用する。`nixpkgs.overlays` は `mkDefault` にせず通常のリストとして利用側の overlay と結合する。Mirakurun の選択 package 用 overlay は `mkAfter` で適用する。外側で別途 import した `pkgs` や `specialArgs.pkgs` には反映されない。
 - flake package の default は Mirakurun。
 - package:
   - `px4_drv`

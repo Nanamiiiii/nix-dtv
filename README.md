@@ -24,6 +24,8 @@ px4_drv に含まれる udev rule は upstream と同じ `root:video`, mode `066
 
 ## 使用例
 
+`nixosModules.default` / `nixosModules.dtv` の import だけで overlay も適用され、NixOS module 引数の `pkgs.nix-dtv` を参照できます。利用側の `nixpkgs.overlays` とも結合されます。flake の外側で別途 import した `pkgs` や `specialArgs.pkgs` には反映されないため、module 引数の `pkgs` を使ってください。
+
 ```nix
 {
   inputs.nix-dtv.url = "github:Nanamiiiii/nix-dtv";
@@ -49,7 +51,6 @@ px4_drv に含まれる udev rule は upstream と同じ `root:video`, mode `066
 
           # px4_drv が配布する firmware のライセンスに必要です。
           nixpkgs.config.allowUnfree = true;
-          nixpkgs.overlays = [ nix-dtv.overlays.default ];
 
           security.polkit.enable = true;
           services.pcscd.enable = true;

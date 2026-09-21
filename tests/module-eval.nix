@@ -120,7 +120,7 @@ let
     modules = [
       self.nixosModules.default
       {
-        nixpkgs.overlays = [ (_: _: { }) ];
+        nixpkgs.overlays = [ (_: _: { dtvTestOverlay = true; }) ];
         hardware.px4_drv.enable = true;
         services.mirakurun.enable = true;
         services.edcb.enable = true;
@@ -292,7 +292,10 @@ assert nixpkgs.lib.any (
 ) duplicateBinary.config.assertions;
 assert !(cfg.hardware ? dtv);
 assert defaultDtv.config.services.edcb.bondriver == [ ];
-assert !(withCustomOverlay.pkgs ? nix-dtv);
+assert defaultDtv.pkgs ? nix-dtv;
+assert withCustomOverlay.pkgs ? nix-dtv;
+assert withCustomOverlay.pkgs.dtvTestOverlay;
+assert withCustomOverlay.pkgs.mirakurun == withCustomOverlay.config.services.mirakurun.package;
 assert withCustomOverlay.config.hardware.px4_drv.package.pname == "px4_drv";
 assert withCustomOverlay.config.services.mirakurun.package.version == "4.1.3";
 assert withCustomOverlay.config.services.edcb.package.pname == "edcb";

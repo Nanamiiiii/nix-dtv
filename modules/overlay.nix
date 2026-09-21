@@ -1,4 +1,4 @@
-{ lib, ... }:
+{ ... }:
 {
-  nixpkgs.overlays = lib.mkDefault [ (import ../overlays) ];
+  nixpkgs.overlays = [ (import ../overlays) ];
 }

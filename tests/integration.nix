@@ -4,6 +4,7 @@
 }:
 
 pkgs.testers.runNixOSTest {
+  node.pkgsReadOnly = false;
   name = "mirakurun-edcb-integration";
 
   nodes.machine = {

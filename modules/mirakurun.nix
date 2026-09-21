@@ -33,7 +33,7 @@ in
   config = lib.mkIf cfg.enable {
     # The upstream module refers to pkgs.mirakurun directly. Override that one
     # package so its service and system package both use the selected 4.x build.
-    nixpkgs.overlays = lib.mkDefault [
+    nixpkgs.overlays = lib.mkAfter [
       (_final: _prev: { mirakurun = cfg.package; })
     ];
 

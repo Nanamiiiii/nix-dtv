@@ -6,6 +6,7 @@
 let
   fakeMirakurun = pkgs.writeShellApplication {
     name = "mirakurun";
+    meta.description = "Fake Mirakurun for the module test";
     runtimeInputs = [ pkgs.python3 ];
     text = ''
       exec python -m http.server 40772 --bind 127.0.0.1
@@ -13,6 +14,7 @@ let
   };
 in
 pkgs.testers.runNixOSTest {
+  node.pkgsReadOnly = false;
   name = "mirakurun-module";
   nodes.machine = {
     imports = [ self.nixosModules.mirakurun ];
