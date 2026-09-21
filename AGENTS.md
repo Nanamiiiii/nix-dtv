@@ -133,11 +133,13 @@ ISDBScanner は上流sourceをPythonで実行し、次をNix closureに含めて
 
 ### KonomiTV
 
+- 接続 URL は `tcp://<edcbHost>:<edcbPort>/` と `http://<mirakurunHost>:<mirakurunPort>/` を生成する。host は既定で `127.0.0.1`、port はそれぞれ `services.edcb.tcpPort` と `services.mirakurun.port` に追従する。
+
 - `services.konomitv.openFirewallPort` は既定で `false`。サービス有効時に `true` なら `serverPort` の TCP ポートを開放する。
 - native package化せず、公式 `ghcr.io/tsukumijima/konomitv:latest` をNixOSの`virtualisation.oci-containers`とDocker backendで起動する。
 - host networkを使用する。
 - `config.yaml` はNixから生成してread-only mountし、Web UIでのserver config変更をsource of truthにしない。
-- `backend`、`streamFromMirakurun`、`edcbUrl`、`mirakurunUrl`、`encoder`、`serverPort` と各directory optionから `config.yaml` の主要項目を生成する。`extraSettings` はその他の項目を追加し、専用optionと同じキーでは専用optionを優先する。
+- `backend`、`streamFromMirakurun`、`edcbHost`、`edcbPort`、`mirakurunHost`、`mirakurunPort`、`encoder`、`serverPort` と各directory optionから `config.yaml` の主要項目を生成する。`extraSettings` はその他の項目を追加し、専用optionと同じキーでは専用optionを優先する。
 - `recordingDir` と `captureDir` は文字列リスト。録画directoryはすべてread-only mountし、capture directoryはすべてread-write mountする。data/logsもread-write mountする。
 - `services.konomitv.manageCaptureDirs` のdefaultは `true`。`false` ではcapture先のtmpfiles ruleだけを生成せず、`capture.upload_folders` とread-write mountは維持する。
 - `encoder = "QSVEncC"` または `"VCEEncC"` では `/dev/dri/` をcontainerへ渡す。`"NVEncC"` では全NVIDIA GPUを `compute,utility,video` capability付きで渡し、`hardware.nvidia-container-toolkit.enable` を既定で有効にする。`"FFmpeg"` ではGPUを自動追加しない。`devices` は追加device用。

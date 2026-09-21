@@ -8,7 +8,7 @@
   v4l-utils,
 }:
 
-rustPlatform.buildRustPackage rec {
+rustPlatform.buildRustPackage {
   pname = "recisdb";
   version = "1.2.4-unstable-2026-08-22";
 

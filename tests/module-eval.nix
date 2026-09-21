@@ -58,10 +58,12 @@ let
             "/var/lib/konomitv/capture"
             "/srv/tv/capture"
           ];
-          backend = "mirakurun";
+          backend = "Mirakurun";
           streamFromMirakurun = true;
-          edcbUrl = "tcp://127.0.0.1:4511/";
-          mirakurunUrl = "http://127.0.0.1:40773/";
+          edcbHost = "edcb.example.test";
+          edcbPort = 4511;
+          mirakurunHost = "mirakurun.example.test";
+          mirakurunPort = 40773;
           encoder = "QSVEncC";
           devices = [ "/dev/video0:/dev/video0" ];
           serverPort = 7100;
@@ -529,8 +531,8 @@ pkgs.runCommand "nix-dtv-module-eval"
     assert konomitv["general"] == {
         "backend": "Mirakurun",
         "always_receive_tv_from_mirakurun": True,
-        "edcb_url": "tcp://127.0.0.1:4511/",
-        "mirakurun_url": "http://127.0.0.1:40773/",
+        "edcb_url": "tcp://edcb.example.test:4511/",
+        "mirakurun_url": "http://mirakurun.example.test:40773/",
         "encoder": "QSVEncC",
         "program_update_interval": 10.0,
     }

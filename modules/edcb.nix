@@ -7,9 +7,13 @@
 
 let
   cfg = config.services.edcb;
+
   ini = pkgs.formats.ini { };
+
   runtimeLibDir = "/var/lib/edcb/lib";
+
   webUIRoot = "${cfg.materialWebUI.package}/share/edcb-material-webui";
+
   certificateSubjectAltNames = lib.unique (
     [
       "DNS:localhost"
@@ -18,11 +22,13 @@ let
     ++ lib.optional (config.networking.hostName != "") "DNS:${config.networking.hostName}"
     ++ cfg.materialWebUI.extraCertificateSubjectAltNames
   );
+
   epgTimerSrvSettings =
     if cfg.settings == null then
       null
     else
       lib.recursiveUpdate (lib.recursiveUpdate tunerSettings cfg.settings) portSettings;
+
   portSettings = {
     SET = {
       TCPPort = cfg.tcpPort;
@@ -31,6 +37,7 @@ let
       );
     };
   };
+
   commonSettings =
     if cfg.commonSettings == null then
       null
@@ -46,7 +53,9 @@ let
           }) cfg.recordingDir
         );
       } cfg.commonSettings;
+
   selectedDrivers = cfg.bondriver;
+
   tunerSettings = {
     TVTEST = {
       Num = builtins.length selectedDrivers;
@@ -64,15 +73,18 @@ let
       value = driver.tunerSettings;
     }) (lib.filter (driver: driver.tunerSettings != { }) selectedDrivers)
   );
+
   bonDriverIniFiles = map (driver: {
     name = "${driver.name}.ini";
     path = "${runtimeLibDir}/${driver.name}.ini";
     settings = driver.settings;
     settingsFile = driver.settingsFile;
   }) selectedDrivers;
+
   bonDriverLibraryLinks = map (
     driver: "L+ ${runtimeLibDir}/${driver.name} - - - - ${driver.driverPath}"
   ) selectedDrivers;
+
   iniFiles = [
     {
       name = "EpgTimerSrv.ini";
@@ -100,6 +112,7 @@ let
     }
   ]
   ++ bonDriverIniFiles;
+
   resolvedIniFiles = map (
     file:
     file
@@ -113,9 +126,13 @@ let
           null;
     }
   ) iniFiles;
+
   configuredIniFiles = lib.filter (file: file.source != null) resolvedIniFiles;
+
   linkedIniFiles = lib.filter (file: file.immutable or true) configuredIniFiles;
+
   mergedIniFiles = lib.filter (file: !(file.immutable or true)) configuredIniFiles;
+
   mergeIni = pkgs.writeText "edcb-merge-ini.py" ''
     import configparser
     import os
@@ -153,7 +170,9 @@ let
         if os.path.exists(temporary):
             os.unlink(temporary)
   '';
+
   unmanagedIniFiles = lib.filter (file: file.source == null) resolvedIniFiles;
+
   edcbLibraries = [
     "EpgDataCap3.so"
     "RecName_Macro.so"
@@ -297,26 +316,31 @@ in
                 type = lib.types.package;
                 description = "Package providing this BonDriver.";
               };
+
               driverPath = lib.mkOption {
                 type = lib.types.str;
                 description = "Absolute path to the BonDriver shared library, normally inside package.";
               };
+
               name = lib.mkOption {
                 type = lib.types.str;
                 default = builtins.baseNameOf config.driverPath;
                 defaultText = lib.literalExpression "builtins.baseNameOf driverPath";
                 description = "Filename used for the BonDriver library symlink. The adjacent INI symlink uses <name>.ini. Defaults to the basename of driverPath.";
               };
+
               settingsFile = lib.mkOption {
                 type = lib.types.nullOr lib.types.path;
                 default = null;
                 description = "Existing INI file to link beside the selected driver as <name>.ini. Takes precedence over settings.";
               };
+
               settings = lib.mkOption {
                 type = lib.types.nullOr (pkgs.formats.ini { }).type;
                 default = null;
                 description = "INI settings written beside the selected driver as <name>.ini. Used when settingsFile is null; null leaves the INI unmanaged if settingsFile is also null. No driver-specific values are added.";
               };
+
               tunerSettings = lib.mkOption {
                 type = lib.types.attrsOf (
                   lib.types.oneOf [
@@ -393,7 +417,9 @@ in
     }) selectedDrivers;
 
     users.groups.${cfg.recordingGroup} = { };
+
     users.groups.edcb = { };
+
     users.users.edcb = {
       isSystemUser = true;
       group = "edcb";

@@ -38,17 +38,29 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # enable px4_drv kernel module
     hardware.px4_drv.enable = lib.mkDefault cfg.px4_drv.enable;
+
+    # enable mirakurun service
     services.mirakurun.enable = lib.mkDefault cfg.mirakurun.enable;
+
+    # enable EDCB EpgTimerSrv service
     services.edcb = {
       enable = lib.mkDefault cfg.edcb.enable;
       recordingDir = lib.mkDefault cfg.recordingDir;
       recordingGroup = lib.mkDefault cfg.recordingGroup;
     };
+
+    # enable konomitv service (via oci-container)
     services.konomitv = {
       enable = lib.mkDefault cfg.konomitv.enable;
       recordingDir = lib.mkDefault cfg.recordingDir;
     };
+
+    # enable PC/SC smart card daemon to read B-CAS card
     services.pcscd.enable = true;
+
+    # enable polkit daemon
+    security.polkit.enable = true;
   };
 }

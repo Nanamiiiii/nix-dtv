@@ -138,8 +138,10 @@ NVEncCではホスト側のNVIDIA driver設定も必要です。通常は `servi
 services.konomitv = {
   backend = "EDCB";
   streamFromMirakurun = true;
-  edcbUrl = "tcp://127.0.0.1:4510/";
-  mirakurunUrl = "http://127.0.0.1:40772/";
+  edcbHost = "127.0.0.1";
+  edcbPort = 4510;
+  mirakurunHost = "127.0.0.1";
+  mirakurunPort = 40772;
   encoder = "QSVEncC";
   serverPort = 7000;
 
@@ -152,6 +154,8 @@ services.konomitv = {
   extraSettings.general.program_update_interval = 10.0;
 };
 ```
+
+KonomiTV の接続 URL は `edcbHost` / `edcbPort` から `tcp://<host>:<port>/`、`mirakurunHost` / `mirakurunPort` から `http://<host>:<port>/` を生成します。host の既定値はいずれも `127.0.0.1`、port の既定値はそれぞれ `services.edcb.tcpPort` と `services.mirakurun.port` に追従します。
 
 `hardware.px4_drv.enable` でカーネルドライバーを有効化します。BonDriver は `services.edcb.bondriver` に定義のリストを指定します。各定義は `package`、実バイナリへの絶対パス `driverPath`、配置名 `name`、ドライバーINI用の `settings` と `settingsFile`、`EpgTimerSrv.ini` 用の `tunerSettings` を持ちます。`name` の既定値は `driverPath` の末尾のファイル名です。同梱の BonDriver_LinuxMirakc は `$out/lib/BonDriver_LinuxMirakc.so` に配置されます。
 

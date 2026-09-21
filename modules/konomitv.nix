@@ -7,29 +7,37 @@
 
 let
   cfg = config.services.konomitv;
+
   yaml = pkgs.formats.yaml { };
+
   managedSettings = {
     general = {
-      backend = if cfg.backend == "mirakurun" then "Mirakurun" else cfg.backend;
+      backend = cfg.backend;
       always_receive_tv_from_mirakurun = cfg.streamFromMirakurun;
-      edcb_url = cfg.edcbUrl;
-      mirakurun_url = cfg.mirakurunUrl;
+      edcb_url = "tcp://${cfg.edcbHost}:${toString cfg.edcbPort}/";
+      mirakurun_url = "http://${cfg.mirakurunHost}:${toString cfg.mirakurunPort}/";
       encoder = cfg.encoder;
     };
     server.port = cfg.serverPort;
     video.recorded_folders = cfg.recordingDir;
     capture.upload_folders = cfg.captureDir;
   };
+
   generatedSettings = lib.recursiveUpdate (lib.recursiveUpdate {
     video.exclude_scan_paths = [ ];
   } cfg.extraSettings) managedSettings;
+
   configFile = yaml.generate "konomitv-config.yaml" generatedSettings;
+
   hostRootTarget = path: "/host-rootfs${path}";
+
   encoderDevices = lib.optionals (lib.elem cfg.encoder [
     "QSVEncC"
     "VCEEncC"
   ]) [ "/dev/dri:/dev/dri" ];
+
   containerDevices = lib.unique (encoderDevices ++ cfg.devices);
+
   encoderExtraOptions = lib.optionals (cfg.encoder == "NVEncC") [
     "--gpus=all,capabilities=compute,utility,video"
   ];
@@ -84,7 +92,7 @@ in
     backend = lib.mkOption {
       type = lib.types.enum [
         "EDCB"
-        "mirakurun"
+        "Mirakurun"
       ];
       default = "EDCB";
       description = "Tuner backend application.";
@@ -96,16 +104,28 @@ in
       description = "Use mirakurun as stream backend instead of EDCB.";
     };
 
-    edcbUrl = lib.mkOption {
+    edcbHost = lib.mkOption {
       type = lib.types.str;
-      default = "tcp://127.0.0.1:4510/";
-      description = "Url to access EDCB";
+      default = "127.0.0.1";
+      description = "IP or hostname that EDCB service listens to.";
     };
 
-    mirakurunUrl = lib.mkOption {
+    edcbPort = lib.mkOption {
+      type = lib.types.port;
+      default = config.services.edcb.tcpPort;
+      description = "TCP port that EDCB service listens to.";
+    };
+
+    mirakurunHost = lib.mkOption {
       type = lib.types.str;
-      default = "http://127.0.0.1:40772/";
-      description = "Url to access mirakurun.";
+      default = "127.0.0.1";
+      description = "IP or hostname that mirakurun service listens to.";
+    };
+
+    mirakurunPort = lib.mkOption {
+      type = lib.types.port;
+      default = config.services.mirakurun.port;
+      description = "HTTP port that mirakurun service listens to.";
     };
 
     encoder = lib.mkOption {
