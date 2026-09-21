@@ -37,7 +37,7 @@ let
         services.edcb.bondriver = [
           {
             package = pkgs.nix-dtv.bondriver-linux-mirakc;
-            driverPath = nixpkgs.lib.mkDefault "${pkgs.nix-dtv.bondriver-linux-mirakc}/lib/BonDriver_LinuxMirakc.so";
+            driverPath = "${pkgs.nix-dtv.bondriver-linux-mirakc}/lib/BonDriver_LinuxMirakc.so";
             settings.GLOBAL.PRIORITY = 5;
             tunerSettings = {
               Count = 4;
