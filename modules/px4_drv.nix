@@ -5,12 +5,12 @@
 }:
 
 let
-  cfg = config.hardware.dtv.px4_drv;
+  cfg = config.hardware.px4_drv;
 in
 {
   imports = [ ./overlay.nix ];
 
-  options.hardware.dtv.px4_drv = {
+  options.hardware.px4_drv = {
     enable = lib.mkEnableOption "Unofficial Linux Driver for PLEX and e-Better ISDB-T/S Tuner";
 
     package = lib.mkOption {

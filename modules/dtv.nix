@@ -38,7 +38,7 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    hardware.dtv.px4_drv.enable = lib.mkDefault cfg.px4_drv.enable;
+    hardware.px4_drv.enable = lib.mkDefault cfg.px4_drv.enable;
     services.mirakurun.enable = lib.mkDefault cfg.mirakurun.enable;
     services.edcb = {
       enable = lib.mkDefault cfg.edcb.enable;
@@ -49,5 +49,6 @@ in
       enable = lib.mkDefault cfg.konomitv.enable;
       recordingDir = lib.mkDefault cfg.recordingDir;
     };
+    services.pcscd.enable = true;
   };
 }

@@ -153,12 +153,12 @@ services.konomitv = {
 };
 ```
 
-`hardware.dtv.px4_drv.enable` でカーネルドライバーを有効化します。BonDriver は `services.edcb.bondriver` に定義のリストを指定します。各定義は `package`、実バイナリへの絶対パス `driverPath`、配置名 `name`、ドライバーINI用の `settings` と `settingsFile`、`EpgTimerSrv.ini` 用の `tunerSettings` を持ちます。`name` の既定値は `driverPath` の末尾のファイル名です。同梱の BonDriver_LinuxMirakc は `$out/lib/BonDriver_LinuxMirakc.so` に配置されます。
+`hardware.px4_drv.enable` でカーネルドライバーを有効化します。BonDriver は `services.edcb.bondriver` に定義のリストを指定します。各定義は `package`、実バイナリへの絶対パス `driverPath`、配置名 `name`、ドライバーINI用の `settings` と `settingsFile`、`EpgTimerSrv.ini` 用の `tunerSettings` を持ちます。`name` の既定値は `driverPath` の末尾のファイル名です。同梱の BonDriver_LinuxMirakc は `$out/lib/BonDriver_LinuxMirakc.so` に配置されます。
 
 EDCB はリストの全定義を順に参照し、`name` で本体を `/var/lib/edcb/lib/` にリンクします。`settingsFile`（既定値 `null`）が指定されていれば、そのファイルへのリンクを `<name>.ini` として隣に配置します。`settingsFile` は `settings` より優先されます。`settingsFile` が `null` の場合は `settings` からINIを生成し、両方 `null` ならINIを管理しません。同じ `driverPath` でも異なる `name` を指定すれば複数配置できます。`name` の重複はエラーです。`services.edcb.bondriver` の既定値は空リストで、`services.dtv` からも自動追加しません。使用するドライバーをホスト側で明示してください。以下は `config`、`lib`、`pkgs` を受け取る NixOS module 内の例です。
 
 ```nix
-hardware.dtv.px4_drv.enable = true;
+hardware.px4_drv.enable = true;
 services.edcb.bondriver = [
   {
     package = pkgs.nix-dtv.bondriver-linux-mirakc;
@@ -245,7 +245,7 @@ Web UI のポートは `httpPorts` と `httpsPorts` で指定します。既定�
 
 EDCB service は初回起動時に自己署名証明書と秘密鍵を `/var/lib/edcb/ssl_cert.pem` に `edcb:edcb`、mode `0600` で生成します。既存ファイルは上書きしません。証明書には localhost、127.0.0.1、NixOS のホスト名を含め、追加のホスト名や IP アドレスは `extraCertificateSubjectAltNames` で指定します。変更後も既存証明書は維持されるので、SAN を変更する場合は証明書を再生成してください。利用端末では自己署名証明書を信頼する設定が必要です。Linux 版 EDCB が動的に読み込む OpenSSL 3 の `libssl.so.3` と `libcrypto.so.3` は package の closure と実行時検索パスに含めています。リモート視聴には別途トランスコーダーが必要です。
 
-個別 module も直接利用できます。詳しい option は `nixos-option services.mirakurun`、`services.edcb`、`services.konomitv`、`hardware.dtv.px4_drv` を参照してください。
+個別 module も直接利用できます。詳しい option は `nixos-option services.mirakurun`、`services.edcb`、`services.konomitv`、`hardware.px4_drv` を参照してください。
 
 ## BonDriver と Mirakurun の互換性
 

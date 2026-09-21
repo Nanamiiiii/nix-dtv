@@ -119,7 +119,7 @@ let
       self.nixosModules.default
       {
         nixpkgs.overlays = [ (_: _: { }) ];
-        hardware.dtv.px4_drv.enable = true;
+        hardware.px4_drv.enable = true;
         services.mirakurun.enable = true;
         services.edcb.enable = true;
       }
@@ -288,10 +288,10 @@ assert firewallServicesDisabled.config.networking.firewall.allowedTCPPorts == [ 
 assert nixpkgs.lib.any (
   a: !a.assertion && nixpkgs.lib.hasInfix "duplicate names" a.message
 ) duplicateBinary.config.assertions;
-assert !(cfg.hardware.dtv ? bondriver);
+assert !(cfg.hardware ? dtv);
 assert defaultDtv.config.services.edcb.bondriver == [ ];
 assert !(withCustomOverlay.pkgs ? nix-dtv);
-assert withCustomOverlay.config.hardware.dtv.px4_drv.package.pname == "px4_drv";
+assert withCustomOverlay.config.hardware.px4_drv.package.pname == "px4_drv";
 assert withCustomOverlay.config.services.mirakurun.package.version == "4.1.3";
 assert withCustomOverlay.config.services.edcb.package.pname == "edcb";
 assert withCustomOverlay.config.services.edcb.materialWebUI.package.pname == "edcb-material-webui";
@@ -360,9 +360,9 @@ assert nixpkgs.lib.all
   ];
 assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/EpgTimerSrv.ini ")
   cfg.systemd.tmpfiles.rules;
-assert cfg.hardware.dtv.px4_drv.enable;
-assert builtins.elem cfg.hardware.dtv.px4_drv.package cfg.boot.extraModulePackages;
-assert builtins.elem cfg.hardware.dtv.px4_drv.package cfg.services.udev.packages;
+assert cfg.hardware.px4_drv.enable;
+assert builtins.elem cfg.hardware.px4_drv.package cfg.boot.extraModulePackages;
+assert builtins.elem cfg.hardware.px4_drv.package cfg.services.udev.packages;
 assert
   !(nixpkgs.lib.any (nixpkgs.lib.hasInfix "BonDriver_Unselected.so") cfg.systemd.tmpfiles.rules);
 assert

@@ -35,7 +35,7 @@ physical tuner
 - NixOS module:
   - `nixosModules.default`: 全 module を import する統合入口
   - `nixosModules.dtv`: `services.dtv` convenience layer
-  - `nixosModules.px4_drv`: `hardware.dtv.px4_drv`
+  - `nixosModules.px4_drv`: `hardware.px4_drv`
   - `nixosModules.mirakurun`: `services.mirakurun`
   - `nixosModules.edcb`: `services.edcb`
   - `nixosModules.konomitv`: `services.konomitv`
