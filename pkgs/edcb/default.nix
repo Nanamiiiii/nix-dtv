@@ -1,4 +1,5 @@
 {
+  edcbExtraTools,
   fetchFromGitHub,
   lib,
   lua5_2,
@@ -47,9 +48,16 @@ stdenv.mkDerivation {
 
     install -Dm755 EpgDataCap_Bon/EpgDataCap_Bon/EpgDataCap_Bon "$out/bin/EpgDataCap_Bon"
     install -Dm755 EpgTimerSrv/EpgTimerSrv/EpgTimerSrv "$out/bin/EpgTimerSrv"
+
     for tool in asyncbuf relayread tsidmove-edcb tspgtxt; do
       install -Dm755 "Document/Unix/$tool" "$out/bin/$tool"
     done
+
+    ln -s ${edcbExtraTools.b24tovtt}/bin/b24tovtt "$out/bin/b24tovtt"
+    ln -s ${edcbExtraTools.psisiarc}/bin/psisiarc "$out/bin/psisiarc"
+    ln -s ${edcbExtraTools.psisimux}/bin/psisimux "$out/bin/psisimux"
+    ln -s ${edcbExtraTools.tsmemseg}/bin/tsmemseg "$out/bin/tsmemseg"
+    ln -s ${edcbExtraTools.tsreadex}/bin/tsreadex "$out/bin/tsreadex"
 
     install -Dm444 EpgDataCap3/EpgDataCap3/EpgDataCap3.so "$out/lib/edcb/EpgDataCap3.so"
     install -Dm444 RecName_Macro/RecName_Macro/RecName_Macro.so "$out/lib/edcb/RecName_Macro.so"

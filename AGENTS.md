@@ -22,7 +22,7 @@ physical tuner
 ## 現在の構成
 
 - 対応 system は `x86_64-linux` と `aarch64-linux`。
-- overlay は全 package を `pkgs.nix-dtv` 以下に公開する。
+- overlay は主要 package を `pkgs` 直下、EDCB 補助ツールを `pkgs.edcbExtraTools` 以下に公開する。
 - `nixosModules.default` / `nixosModules.nix-dtv` の import で overlay を自動適用する。`nixpkgs.overlays` は `mkDefault` にせず通常のリストとして利用側の overlay と結合する。Mirakurun の選択 package 用 overlay は `mkAfter` で適用する。外側で別途 import した `pkgs` や `specialArgs.pkgs` には反映されない。
 - flake package の default は Mirakurun。
 - package:
@@ -37,6 +37,8 @@ physical tuner
   - `nixosModules.nix-dtv`: 全 module と overlay を import する統合入口。`services.dtv` convenience layer と個別サービスの option を公開する。
   - `nixosModules.default`: `nixosModules.nix-dtv` の別名。
   - 個別 module の公開は廃止。`services.dtv.enable` が無効でも overlay は適用され、個別サービスを直接有効化できる。
+
+主要パッケージを overlay により `pkgs` 直下へ公開し、既存の `pkgs.mirakurun` は本リポジトリのバージョンで上書きします。旧 `pkgs.nix-dtv` 名前空間は提供しません。カーネル別のドライバーは `config.boot.kernelPackages.px4_drv` を参照します。EDCB 補助ツール（`b24tovtt`、`psisiarc`、`psisimux`、`tsmemseg`、`tsreadex`）は `pkgs.edcbExtraTools` 以下にまとめます。flake の `packages` では従来どおり各ツール名で公開します。EDCB package は `callPackage` が自動注入する `edcbExtraTools` を受け取り、各ツールを参照します。
 
 主なファイル:
 

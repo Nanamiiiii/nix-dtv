@@ -24,9 +24,12 @@
             config.allowUnfree = true;
           };
         in
-        pkgs.nix-dtv
+        (nixpkgs.lib.mapAttrs (name: _: pkgs.${name}) (
+          builtins.removeAttrs (import ./pkgs { inherit pkgs; }) [ "edcbExtraTools" ]
+        ))
+        // pkgs.edcbExtraTools
         // {
-          default = pkgs.nix-dtv.mirakurun;
+          default = pkgs.mirakurun;
         }
       );
 

@@ -21,8 +21,8 @@ pkgs.testers.runNixOSTest {
     services.edcb.materialWebUI.enable = true;
     services.edcb.bondriver = [
       {
-        package = pkgs.nix-dtv.bondriver-linux-mirakc;
-        driverPath = "${pkgs.nix-dtv.bondriver-linux-mirakc}/lib/BonDriver_LinuxMirakc.so";
+        package = pkgs.bondriver-linux-mirakc;
+        driverPath = "${pkgs.bondriver-linux-mirakc}/lib/BonDriver_LinuxMirakc.so";
         tunerSettings = {
           Count = 1;
           GetEpg = 1;

@@ -15,15 +15,16 @@ in
   options.services.mirakurun = {
     package = lib.mkOption {
       type = lib.types.package;
-      default = pkgs.nix-dtv.mirakurun or (pkgs.callPackage ../../pkgs/mirakurun { });
-      defaultText = lib.literalExpression "pkgs.nix-dtv.mirakurun";
+      # Avoid a fixed-point cycle with the selected-package overlay below.
+      default = pkgs.callPackage ../../pkgs/mirakurun { };
+      defaultText = lib.literalExpression "pkgs.callPackage ../../pkgs/mirakurun { }";
       description = "Mirakurun package used by the nixpkgs service module.";
     };
 
     tunerCommandPackages = lib.mkOption {
       type = lib.types.listOf lib.types.package;
-      default = [ (pkgs.nix-dtv.recisdb or (pkgs.callPackage ../../pkgs/recisdb { })) ];
-      defaultText = lib.literalExpression "[ pkgs.nix-dtv.recisdb ]";
+      default = [ (pkgs.recisdb or (pkgs.callPackage ../../pkgs/recisdb { })) ];
+      defaultText = lib.literalExpression "[ pkgs.recisdb ]";
       description = "Packages containing tuner commands referenced by tuners.yml.";
     };
   };

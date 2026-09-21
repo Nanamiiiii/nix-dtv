@@ -17,14 +17,16 @@ physical tuner -> px4_drv -> Mirakurun -> BonDriver_LinuxMirakc -> EDCB
 - `packages.<system>.edcb`: `Document/Unix/Makefile` を使う Linux native EDCB
 - `packages.<system>.edcb-material-webui`: EMWUI 3 の E3 ブランチを固定した Web UI
 - `packages.<system>.bondriver-linux-mirakc`: picojson を含む native BonDriver `.so`
-- `overlays.default`: 上記を `pkgs.nix-dtv` 以下へ追加する overlay
+- `overlays.default`: 上記を `pkgs` 直下へ追加する overlay
 - `nixosModules.{default,nix-dtv}`: 全 module を import する統合入口
 
 px4_drv に含まれる udev rule は upstream と同じ `root:video`, mode `0664` です。
 
+主要パッケージを overlay により `pkgs` 直下へ公開し、既存の `pkgs.mirakurun` は本リポジトリのバージョンで上書きします。旧 `pkgs.nix-dtv` 名前空間は提供しません。カーネル別のドライバーは `config.boot.kernelPackages.px4_drv` を参照します。EDCB 補助ツール（`b24tovtt`、`psisiarc`、`psisimux`、`tsmemseg`、`tsreadex`）は `pkgs.edcbExtraTools` 以下にまとめます。flake の `packages` では従来どおり各ツール名で公開します。EDCB package は `callPackage` が自動注入する `edcbExtraTools` を受け取り、各ツールを参照します。
+
 ## 使用例
 
-`nixosModules.default` / `nixosModules.nix-dtv` の import だけで overlay も適用され、NixOS module 引数の `pkgs.nix-dtv` を参照できます。利用側の `nixpkgs.overlays` とも結合されます。個別 module の import は不要で、`services.dtv.enable` を使わず各サービスの option を直接設定することもできます。flake の外側で別途 import した `pkgs` や `specialArgs.pkgs` には反映されないため、module 引数の `pkgs` を使ってください。
+`nixosModules.default` / `nixosModules.nix-dtv` の import だけで overlay も適用され、NixOS module 引数の `pkgs` を参照できます。利用側の `nixpkgs.overlays` とも結合されます。個別 module の import は不要で、`services.dtv.enable` を使わず各サービスの option を直接設定することもできます。flake の外側で別途 import した `pkgs` や `specialArgs.pkgs` には反映されないため、module 引数の `pkgs` を使ってください。
 
 ```nix
 {
@@ -67,8 +69,8 @@ px4_drv に含まれる udev rule は upstream と同じ `root:video`, mode `066
 
           services.edcb.bondriver = [
             {
-              package = pkgs.nix-dtv.bondriver-linux-mirakc;
-              driverPath = "${pkgs.nix-dtv.bondriver-linux-mirakc}/lib/BonDriver_LinuxMirakc.so";
+              package = pkgs.bondriver-linux-mirakc;
+              driverPath = "${pkgs.bondriver-linux-mirakc}/lib/BonDriver_LinuxMirakc.so";
               tunerSettings.Count = 1; # 実機のチューナー数に合わせる
             }
           ];
@@ -166,9 +168,9 @@ EDCB はリストの全定義を順に参照し、`name` で本体を `/var/lib/
 hardware.px4_drv.enable = true;
 services.edcb.bondriver = [
   {
-    package = pkgs.nix-dtv.bondriver-linux-mirakc;
+    package = pkgs.bondriver-linux-mirakc;
     name = "BonDriver_LinuxMirakc.so";
-    driverPath = lib.mkDefault "${pkgs.nix-dtv.bondriver-linux-mirakc}/lib/BonDriver_LinuxMirakc.so";
+    driverPath = lib.mkDefault "${pkgs.bondriver-linux-mirakc}/lib/BonDriver_LinuxMirakc.so";
     settings.GLOBAL = {
       SERVER_HOST = "127.0.0.1";
       SERVER_PORT = config.services.mirakurun.port;

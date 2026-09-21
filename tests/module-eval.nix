@@ -36,8 +36,8 @@ let
         services.edcb.recNameMacroSettings.SET.Macro = "$ZtoH(Title)$.ts";
         services.edcb.bondriver = [
           {
-            package = pkgs.nix-dtv.bondriver-linux-mirakc;
-            driverPath = "${pkgs.nix-dtv.bondriver-linux-mirakc}/lib/BonDriver_LinuxMirakc.so";
+            package = pkgs.bondriver-linux-mirakc;
+            driverPath = "${pkgs.bondriver-linux-mirakc}/lib/BonDriver_LinuxMirakc.so";
             settings.GLOBAL.PRIORITY = 5;
             tunerSettings = {
               Count = 4;
@@ -295,9 +295,24 @@ assert nixpkgs.lib.any (
 ) duplicateBinary.config.assertions;
 assert !(cfg.hardware ? dtv);
 assert defaultDtv.config.services.edcb.bondriver == [ ];
-assert defaultDtv.pkgs ? nix-dtv;
+assert !(defaultDtv.pkgs ? nix-dtv);
+assert builtins.all (name: defaultDtv.pkgs.${name} == self.packages.${system}.${name}) (
+  builtins.attrNames (builtins.removeAttrs (import ../pkgs { inherit pkgs; }) [ "edcbExtraTools" ])
+);
+assert builtins.all
+  (name: defaultDtv.pkgs.edcbExtraTools.${name} == self.packages.${system}.${name})
+  [
+    "b24tovtt"
+    "psisiarc"
+    "psisimux"
+    "tsmemseg"
+    "tsreadex"
+  ];
+assert defaultDtv.pkgs.edcb == defaultDtv.config.services.edcb.package;
 assert !withCustomOverlay.config.services.dtv.enable;
-assert withCustomOverlay.pkgs ? nix-dtv;
+assert !(withCustomOverlay.pkgs ? nix-dtv);
+assert
+  withCustomOverlay.pkgs.linuxPackages.px4_drv == withCustomOverlay.config.hardware.px4_drv.package;
 assert withCustomOverlay.pkgs.dtvTestOverlay;
 assert withCustomOverlay.pkgs.mirakurun == withCustomOverlay.config.services.mirakurun.package;
 assert withCustomOverlay.config.hardware.px4_drv.package.pname == "px4_drv";
