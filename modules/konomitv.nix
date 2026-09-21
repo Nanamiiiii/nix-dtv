@@ -126,6 +126,13 @@ in
       description = "Server port konomitv listens on.";
     };
 
+    openFirewallPort = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      example = true;
+      description = "Open firewall port for konomitv.";
+    };
+
     extraSettings = lib.mkOption {
       type = yaml.type;
       default = { };
@@ -140,7 +147,7 @@ in
   config = lib.mkIf cfg.enable {
     hardware.nvidia-container-toolkit.enable = lib.mkIf (cfg.encoder == "NVEncC") (lib.mkDefault true);
 
-    networking.firewall.allowedTCPPorts = [ 7000 ];
+    networking.firewall.allowedTCPPorts = lib.optional cfg.openFirewallPort cfg.serverPort;
 
     virtualisation.docker.enable = true;
     virtualisation.oci-containers.backend = "docker";

@@ -103,13 +103,15 @@ ISDBScanner は上流sourceをPythonで実行し、次をNix closureに含めて
 
 ### EDCB / BonDriver
 
+- `services.edcb.openFirewallPorts` は既定で `false`。サービス有効時に `true` なら `tcpPort`、`httpPorts`、`httpsPorts` の全 TCP ポートを開放する。`settings` のサーバー有効・無効設定や `settings = null` には連動しない。
 - EDCBはWineではなくLinux nativeのEpgTimerSrvを `edcb:edcb` で実行する。
 - immutable binaryと`.so`はNix store、mutable settings/stateは `/var/lib/edcb`。BonDriverは `services.edcb.bondriver` の定義リストに `package`、実バイナリへの絶対パス `driverPath`、配置名 `name`、`settings`、`settingsFile`、`tunerSettings` を指定する。`name` の既定値は `driverPath` のbasename。`settingsFile` は既定値 `null`。指定されたファイルへのリンクをEDCB側で配置し、`settings` より優先する。両方 `null` ならINIは管理しない。BonDriver本体は `name` で `/var/lib/edcb/lib` にリンクし、INIは隣に `<name>.ini` として配置する。同じ `driverPath` でも異なる `name` を指定すれば複数配置できる。`name` の重複を検出する。同梱BonDriver_LinuxMirakcのビルド出力は `$out/lib/BonDriver_LinuxMirakc.so`。
 - `services.edcb.bondriver` の既定値は空リスト。`services.dtv` からも自動追加せず、使用するドライバーをホスト側で明示する。
 - EDCB userはrecording group `dtv` にだけ追加する。
 - recording directories以外へ広いwrite権限を与えない。
 - `EpgTimerSrv.ini`, `Common.ini`, `EpgDataCap_Bon.ini` は既定でNix管理する。`RecName_Macro.so.ini` と BonDriver定義内の `settings` の既定値は `null`。`tunerSettings` の既定値は `{ }`。`Bitrate.ini` と `BonCtrl.ini` は上流サンプルを初回だけmutableな設定として配置し、既存ファイルを上書きしない。
-- `services.edcb.settings` の既定値にはsystem clock変更を無効にする `TimeSync=0`、TCP `4510`、KonomiTV互換用 `CompatFlags=128` などを含める。明示した `settings` はこの既定値を置き換える。チューナー数は各BonDriverの `tunerSettings.Count` で指定する。時刻同期はsystemd-timesyncdやchronyへ任せる。
+- `services.edcb.settings` の既定値にはsystem clock変更を無効にする `TimeSync=0`、KonomiTV互換用 `CompatFlags=128` などを含める。明示した `settings` はこの既定値を置き換える。チューナー数は各BonDriverの `tunerSettings.Count` で指定する。時刻同期はsystemd-timesyncdやchronyへ任せる。
+- `services.edcb.tcpPort` は `SET.TCPPort`、`httpPorts` と `httpsPorts` は `SET.HttpPort` にカンマ区切りで生成する。HTTPS portには `s` を付け、HTTP portの後ろに並べる。これらの生成値は `settings` の同名キーとmutable INIの既存値より優先する。`settings = null` ではINIを管理しない。
 - BonDriverのINI設定にはドライバー別の値を補完しない。BonDriver_LinuxMirakc自体の既定接続先はHTTP `127.0.0.1:40772`。recisdbが既定でB25処理するため `DECODE_B25` は書かず、上流既定値の0を使う。
 - `services.edcb.settings` が非 `null` なら、`services.edcb.bondriver` のリスト順から `[TVTEST]` の `Num` と0始まりの番号キーを補完し、各定義の `tunerSettings` を `name` と同名のセクションに追加する。`Count`、`GetEpg`、`EPGCount`、`Priority` は自動補完しない。空リストでは `TVTEST.Num=0`、ドライバー別セクションなし。明示した `services.edcb.settings` の同じキーを優先し、`settings = null` は引き続きINIを管理しない。mutableマージでもこれらの補完値はactivation時に適用する。
 - `services.edcb.recordingDir` は文字列リスト。全directoryを `root:dtv`, mode `2770` で作成し、EDCBの `ReadWritePaths` に追加する。`commonSettings` が非 `null` なら指定順に `RecFolderPath0`, `RecFolderPath1`, …と `RecFolderNum` を補完する。
@@ -123,7 +125,7 @@ ISDBScanner は上流sourceをPythonで実行し、次をNix closureに含めて
 - `services.edcb.materialWebUI.enable` は既定で `false`。有効時、固定した E3 package の `HttpPublic/E3` と `HttpPublic/api` を `/var/lib/edcb/HttpPublic` 以下にリンクする。
 - 無効化した場合は managed な `E3` と `api` の store link だけを削除し、mutable な設定ファイルは残す。
 - 上流のディレクトリ名は `Setting`（単数）。`Setting/HttpPublic.ini` と `Setting/XCODE_OPTIONS.lua` は `/var/lib/edcb/Setting` に初回だけ mutable なファイルとしてコピーし、既存値を上書きしない。INI は CP932 から UTF-8（BOMなし）に変換する。
-- Web UI を有効にすると `HttpPort=5510,5511s,5520,5521s` を補完する。`EnableHttpSrv=1` とアクセス制御は `settings` の既定値に含まれ、`HttpNumThreads` などを明示する場合は必要な値を併記する。明示的な `settings = null` は管理対象外のまま。既定のアクセス制御は loopback とプライベートネットワークを許可する。
+- Web UI のportは `httpPorts` と `httpsPorts` で指定する。既定値はHTTP `5510`、HTTPSなし。`EnableHttpSrv=1` とアクセス制御は `settings` の既定値に含まれ、`HttpNumThreads` などを明示する場合は必要な値を併記する。明示的な `settings = null` は管理対象外のまま。既定のアクセス制御は loopback とプライベートネットワークを許可する。
 - `edcb.service` は Web UI 有効時の初回起動前に `/var/lib/edcb/ssl_cert.pem`（自己署名証明書と秘密鍵）を `edcb:edcb`、mode `0600` で生成する。既存ファイルは上書きしない。SAN は localhost、127.0.0.1、NixOS ホスト名と `extraCertificateSubjectAltNames` を含む。SAN の変更で既存証明書は更新しない。
 - Linux 版 EDCB は OpenSSL 3 の `libssl.so.3` と `libcrypto.so.3` を動的に読み込むため、EDCB package は OpenSSL を closure と runtime rpath に含める。
 - EDCB package は Lua 5.2 を build input に含め、Lua ライブラリへの rpath を設定済み。WebUI 用に別の Lua interpreter は不要。E3 側には未設定の `NVRAM.ZIP` を連結すると失敗するため、空値を許す最小 patch を適用。
@@ -131,6 +133,7 @@ ISDBScanner は上流sourceをPythonで実行し、次をNix closureに含めて
 
 ### KonomiTV
 
+- `services.konomitv.openFirewallPort` は既定で `false`。サービス有効時に `true` なら `serverPort` の TCP ポートを開放する。
 - native package化せず、公式 `ghcr.io/tsukumijima/konomitv:latest` をNixOSの`virtualisation.oci-containers`とDocker backendで起動する。
 - host networkを使用する。
 - `config.yaml` はNixから生成してread-only mountし、Web UIでのserver config変更をsource of truthにしない。

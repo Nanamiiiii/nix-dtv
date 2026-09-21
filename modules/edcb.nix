@@ -22,12 +22,15 @@ let
     if cfg.settings == null then
       null
     else
-      lib.recursiveUpdate (
-        tunerSettings
-        // lib.optionalAttrs cfg.materialWebUI.enable {
-          SET.HttpPort = "5510,5511s,5520,5521s";
-        }
-      ) cfg.settings;
+      lib.recursiveUpdate (lib.recursiveUpdate tunerSettings cfg.settings) portSettings;
+  portSettings = {
+    SET = {
+      TCPPort = cfg.tcpPort;
+      HttpPort = lib.concatStringsSep "," (
+        map toString cfg.httpPorts ++ map (port: "${toString port}s") cfg.httpsPorts
+      );
+    };
+  };
   commonSettings =
     if cfg.commonSettings == null then
       null
@@ -203,7 +206,6 @@ in
           HttpAccessControlList = "+127.0.0.0/8,+10.0.0.0/8,+172.16.0.0/12,+192.168.0.0/16,+169.254.0.0/16,+100.64.0.0/10";
           EnableTCPSrv = 1;
           TCPAccessControlList = "+127.0.0.0/8,+10.0.0.0/8,+172.16.0.0/12,+192.168.0.0/16,+169.254.0.0/16,+100.64.0.0/10";
-          TCPPort = 4510;
           CompatFlags = 128;
           TimeSync = 0;
         };
@@ -216,7 +218,7 @@ in
           "0BasicOnlyFlags" = 14;
         };
       };
-      description = "Managed EpgTimerSrv.ini settings. Null leaves the file unmanaged. The option default provides integration settings; an explicit value replaces it. A non-null value receives TVTEST entries and each BonDriver's tunerSettings, plus Web UI HTTP ports when enabled.";
+      description = "Managed EpgTimerSrv.ini settings. Null leaves the file unmanaged. The option default provides integration settings; an explicit value replaces it. A non-null value receives TVTEST entries and each BonDriver's tunerSettings. TCPPort and HttpPort are always derived from the dedicated port options.";
     };
 
     commonSettingsImmutable = lib.mkOption {
@@ -334,6 +336,39 @@ in
       description = "BonDriver definitions to install in selection order. Their names populate TVTEST in EpgTimerSrv.ini.";
     };
 
+    tcpPort = lib.mkOption {
+      type = lib.types.port;
+      default = 4510;
+      example = 4510;
+      description = "TCP port for edcb service.";
+    };
+
+    httpPorts = lib.mkOption {
+      type = lib.types.listOf lib.types.port;
+      default = [ 5510 ];
+      example = [
+        5510
+        5511
+      ];
+      description = "HTTP ports for integrated civetweb.";
+    };
+
+    httpsPorts = lib.mkOption {
+      type = lib.types.listOf lib.types.port;
+      default = [ ];
+      example = [
+        5520
+        5521
+      ];
+      description = "HTTPS ports for integrated civetweb.";
+    };
+
+    openFirewallPorts = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      example = true;
+      description = "Open firewall ports for edcb.";
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -364,6 +399,10 @@ in
       group = "edcb";
       extraGroups = [ cfg.recordingGroup ];
     };
+
+    networking.firewall.allowedTCPPorts = lib.optionals cfg.openFirewallPorts (
+      [ cfg.tcpPort ] ++ cfg.httpPorts ++ cfg.httpsPorts
+    );
 
     systemd.tmpfiles.rules =
       lib.optionals cfg.manageRecordingDirs (

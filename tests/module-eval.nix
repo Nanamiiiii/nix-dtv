@@ -75,6 +75,34 @@ let
     ];
   };
   cfg = evaluated.config;
+  firewallEnabled = evaluated.extendModules {
+    modules = [
+      {
+        networking.firewall.allowedTCPPorts = [ 12345 ];
+        services.edcb = {
+          openFirewallPorts = true;
+          tcpPort = 14510;
+          httpPorts = [
+            15510
+            15520
+          ];
+          httpsPorts = [
+            15511
+            15521
+          ];
+        };
+        services.konomitv.openFirewallPort = true;
+      }
+    ];
+  };
+  firewallServicesDisabled = firewallEnabled.extendModules {
+    modules = [
+      {
+        services.edcb.enable = nixpkgs.lib.mkForce false;
+        services.konomitv.enable = nixpkgs.lib.mkForce false;
+      }
+    ];
+  };
   defaultDtv = nixpkgs.lib.nixosSystem {
     inherit system;
     modules = [
@@ -243,6 +271,20 @@ let
       konomitvVolumes
   );
 in
+assert !cfg.services.edcb.openFirewallPorts;
+assert !cfg.services.konomitv.openFirewallPort;
+assert cfg.networking.firewall.allowedTCPPorts == [ ];
+assert
+  builtins.sort builtins.lessThan firewallEnabled.config.networking.firewall.allowedTCPPorts == [
+    7100
+    12345
+    14510
+    15510
+    15511
+    15520
+    15521
+  ];
+assert firewallServicesDisabled.config.networking.firewall.allowedTCPPorts == [ 12345 ];
 assert nixpkgs.lib.any (
   a: !a.assertion && nixpkgs.lib.hasInfix "duplicate names" a.message
 ) duplicateBinary.config.assertions;
@@ -272,7 +314,9 @@ assert
 assert cfg.services.edcb.settingsImmutable;
 assert cfg.services.edcb.materialWebUI.enable;
 assert !webUIWithDefaultSettings.config.services.edcb.settingsImmutable;
-assert webUIWithDefaultSettings.config.services.edcb.settings.SET.TCPPort == 4510;
+assert webUIWithDefaultSettings.config.services.edcb.tcpPort == 4510;
+assert webUIWithDefaultSettings.config.services.edcb.httpPorts == [ 5510 ];
+assert webUIWithDefaultSettings.config.services.edcb.httpsPorts == [ ];
 assert webUIWithDefaultSettings.config.services.edcb.settings.SET.EnableHttpSrv == 1;
 assert webUIWithUnmanagedSettings.config.services.edcb.settings == null;
 assert

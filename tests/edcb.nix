@@ -80,7 +80,26 @@ pkgs.testers.runNixOSTest {
         "/mnt/tv/recordings"
         "/srv/tv/archive"
       ];
+      tcpPort = 4512;
+      httpPorts = [
+        5510
+        5520
+      ];
+      httpsPorts = [
+        5511
+        5521
+      ];
       settingsImmutable = false;
+      settings.SET = {
+        EnableHttpSrv = 1;
+        HttpAccessControlList = "+127.0.0.0/8,+10.0.0.0/8,+172.16.0.0/12,+192.168.0.0/16,+169.254.0.0/16,+100.64.0.0/10";
+        EnableTCPSrv = 1;
+        TCPAccessControlList = "+127.0.0.0/8,+10.0.0.0/8,+172.16.0.0/12,+192.168.0.0/16,+169.254.0.0/16,+100.64.0.0/10";
+        TCPPort = 9999;
+        HttpPort = "9998,9999s";
+        CompatFlags = 128;
+        TimeSync = 0;
+      };
       commonSettingsImmutable = false;
       commonSettings = { };
       epgDataCapBonSettingsImmutable = false;
@@ -124,6 +143,7 @@ pkgs.testers.runNixOSTest {
     machine.succeed("grep -F 'RecFolderPath0=/mnt/tv/recordings' /var/lib/edcb/Common.ini")
     machine.succeed("grep -F 'RecFolderPath1=/srv/tv/archive' /var/lib/edcb/Common.ini")
     machine.succeed("grep -F 'EnableTCPSrv=1' /var/lib/edcb/EpgTimerSrv.ini")
+    machine.succeed("grep -Fx 'TCPPort=4512' /var/lib/edcb/EpgTimerSrv.ini")
     machine.succeed("grep -F 'TCPAccessControlList=+127.0.0.0/8,+10.0.0.0/8,+172.16.0.0/12,+192.168.0.0/16,+169.254.0.0/16,+100.64.0.0/10' /var/lib/edcb/EpgTimerSrv.ini")
     machine.succeed("grep -F 'CompatFlags=128' /var/lib/edcb/EpgTimerSrv.ini")
     machine.succeed("grep -F 'TimeSync=0' /var/lib/edcb/EpgTimerSrv.ini")
@@ -142,7 +162,7 @@ pkgs.testers.runNixOSTest {
     assert "BonDriver_FileOnly.so" not in ini
     assert "BonDriver_Unselected.so" not in ini
     machine.succeed("grep -F 'EnableHttpSrv=1' /var/lib/edcb/EpgTimerSrv.ini")
-    machine.succeed("grep -F 'HttpPort=5510,5511s,5520,5521s' /var/lib/edcb/EpgTimerSrv.ini")
+    machine.succeed("grep -Fx 'HttpPort=5510,5520,5511s,5521s' /var/lib/edcb/EpgTimerSrv.ini")
     machine.fail("grep -F '[EPG_CAP]' /var/lib/edcb/EpgTimerSrv.ini")
     machine.fail("grep -F 'SERVER_HOST=' /var/lib/edcb/lib/BonDriver_LinuxMirakc.so.ini")
     machine.fail("grep -F 'SERVER_PORT=' /var/lib/edcb/lib/BonDriver_LinuxMirakc.so.ini")
@@ -169,7 +189,8 @@ pkgs.testers.runNixOSTest {
     for name, (key, value) in files.items():
         path = "/var/lib/edcb/" + name
         machine.succeed(f"test ! -L {path}; test $(stat -c %a {path}) = 640")
-        content = f"[SET]\n{key}=old\nExisting=keep%value\n[RuntimeOnly]\nMixedCase=保持\n"
+        port_settings = "TCPPort=1234\nHttpPort=1235,1236s\n" if name == "EpgTimerSrv.ini" else ""
+        content = f"[SET]\n{key}=old\n{port_settings}Existing=keep%value\n[RuntimeOnly]\nMixedCase=保持\n"
         encoding = "utf-16" if name == "EpgTimerSrv.ini" else "utf-8-sig"
         encoded = base64.b64encode(content.encode(encoding)).decode()
         machine.succeed(f"echo {encoded} | base64 -d > {path}")
@@ -191,6 +212,8 @@ pkgs.testers.runNixOSTest {
             machine.succeed(f"grep -Fx 'MixedCase=保持' {path}")
             machine.fail(f"grep -F immutable {path}")
             machine.succeed(f"test $(stat -c %U {path}) = edcb")
+        machine.succeed("grep -Fx 'TCPPort=4512' /var/lib/edcb/EpgTimerSrv.ini")
+        machine.succeed("grep -Fx 'HttpPort=5510,5520,5511s,5521s' /var/lib/edcb/EpgTimerSrv.ini")
     # Transition from the old store-link layout must preserve existing values.
     machine.succeed("systemctl stop edcb")
     machine.succeed("ln -sf ${pkgs.writeText "previous-common.ini" "[SET]\nPrevious=retained\n"} /var/lib/edcb/Common.ini")

@@ -111,10 +111,12 @@ services.konomitv = {
 
 ## 権限と状態
 
+EDCB と KonomiTV の firewall 開放は既定で無効です。`services.edcb.openFirewallPorts = true;` は `tcpPort`、`httpPorts`、`httpsPorts` の全 TCP ポートを開放し、`services.konomitv.openFirewallPort = true;` は `serverPort` の TCP ポートを開放します。いずれもサービスが有効な場合だけ適用されます。EDCB の開放対象はポート専用オプションから決まり、`settings` のサーバー有効・無効設定や `settings = null` には連動しません。
+
 - Mirakurunはnixpkgs標準モジュールで `mirakurun:video` として動かし、このリポジトリでは最新版パッケージの直接起動とrecisdbのservice `PATH`だけを追加します。DBとlogoは `/var/lib/mirakurun`、ランタイム生成されるtuner/channel設定は `/etc/mirakurun` に置きます。
 - EDCB は `edcb:edcb` で動き、`dtv` group だけを追加します。実行ファイルと `.so` の実体は Nix store、設定と状態は `/var/lib/edcb`、録画だけは指定した recording directories に書き込みます。
 - `EpgTimerSrv.ini`、`Common.ini`、`EpgDataCap_Bon.ini` は既定でNix管理します。`RecName_Macro.so.ini` と BonDriver の `<driver name>.ini` は、対応する設定optionを指定した場合に管理します。BonDriver の `settings` と `settingsFile` が両方 `null` の場合は既存設定に任せます。`Bitrate.ini` と `BonCtrl.ini` は上流サンプルを初回だけmutableな設定として配置し、既存ファイルは上書きしません。
-- `services.edcb.settings` の既定値にはTCP `4510`、KonomiTV向けの `CompatFlags=128`、`TimeSync=0` などを含めます。明示的に `settings` を指定するとこの既定値全体を置き換えます。Web UI有効時の `HttpPort`、`Common.ini` の録画先、選択したBonDriverのチューナー設定は個別に補完します。BonDriverごとのINI設定には値を補完しません。接続先や台数の変更は必要に応じて明示してください。
+- `services.edcb.tcpPort` は `SET.TCPPort`、`httpPorts` と `httpsPorts` は `SET.HttpPort` へカンマ区切りで生成します。HTTPS portには `s` を付け、HTTPの後ろに並べます。これらの値は `settings` の同名キーやmutable INIの既存値より優先されます。`services.edcb.settings` の既定値にはKonomiTV向けの `CompatFlags=128`、`TimeSync=0` などを含み、明示的に `settings` を指定するとこの既定値全体を置き換えます。`Common.ini` の録画先と選択したBonDriverのチューナー設定は個別に補完します。BonDriverごとのINI設定には値を補完しません。
 - EPG取得時刻、録画マージン、ファイル名、ログ、B25処理などは環境依存です。モジュールが補完しない項目にはEDCBとBonDriverの上流既定値が使われます。チューナー数とEPG取得方針は各BonDriverの `tunerSettings` に指定してください。
 - recisdbは既定でB25処理を行うため、標準構成ではBonDriver側の `DECODE_B25` を設定しません。raw TSを出すチューナーコマンドとMirakurunのdecoderを使う場合だけ明示してください。
 - EDCB の `TimeSync` は `0` のままにし、時刻同期は systemd-timesyncd や chrony に任せてください。
@@ -239,7 +241,7 @@ services.edcb = {
 };
 ```
 
-Web UI を有効にすると `HttpPort=5510,5511s,5520,5521s` を補完します。明示した `settings.SET.HttpPort` が優先され、`settings = null` を明示した場合は INI を管理しません。`EnableHttpSrv=1` と `HttpAccessControlList` は `settings` の既定値に含まれるため、`settings` を明示する場合は必要な値も指定してください。`HttpNumThreads=50` などを明示する場合も同様です。HTTP は `http://localhost:5510/E3/`、HTTPS は `https://localhost:5511/E3/` です。`5520` と `5521` は SSE 用のポートで、利用する場合は `Setting/HttpPublic.ini` の `useSsePort=1` を設定します。既定のアクセス制御は loopback とプライベートネットワークを許可するため、必要に応じてホスト側で絞り込んでください。
+Web UI のポートは `httpPorts` と `httpsPorts` で指定します。既定値は HTTP `5510`、HTTPS なしです。例えば `httpPorts = [ 5510 5520 ]; httpsPorts = [ 5511 5521 ];` は `HttpPort=5510,5520,5511s,5521s` を生成します。`settings = null` を明示した場合は INI を管理しません。`EnableHttpSrv=1` と `HttpAccessControlList` は `settings` の既定値に含まれるため、`settings` を明示する場合は必要な値も指定してください。`HttpNumThreads=50` などを明示する場合も同様です。SSE用のポートを利用する場合は `Setting/HttpPublic.ini` の `useSsePort=1` を設定します。既定のアクセス制御は loopback とプライベートネットワークを許可するため、必要に応じてホスト側で絞り込んでください。
 
 EDCB service は初回起動時に自己署名証明書と秘密鍵を `/var/lib/edcb/ssl_cert.pem` に `edcb:edcb`、mode `0600` で生成します。既存ファイルは上書きしません。証明書には localhost、127.0.0.1、NixOS のホスト名を含め、追加のホスト名や IP アドレスは `extraCertificateSubjectAltNames` で指定します。変更後も既存証明書は維持されるので、SAN を変更する場合は証明書を再生成してください。利用端末では自己署名証明書を信頼する設定が必要です。Linux 版 EDCB が動的に読み込む OpenSSL 3 の `libssl.so.3` と `libcrypto.so.3` は package の closure と実行時検索パスに含めています。リモート視聴には別途トランスコーダーが必要です。
 
