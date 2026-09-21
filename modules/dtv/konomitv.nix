@@ -190,6 +190,8 @@ in
     systemd.tmpfiles.rules = [
       "d /var/lib/konomitv 0750 root root - -"
       "d ${cfg.dataDir} 0750 root root - -"
+      "d ${cfg.dataDir}/account-icons 0750 root root - -"
+      "d ${cfg.dataDir}/thumbnails 0750 root root - -"
       "d ${cfg.logDir} 0750 root root - -"
     ]
     ++ lib.optionals cfg.manageCaptureDirs (map (path: "d ${path} 0750 root root - -") cfg.captureDir);
