@@ -1691,7 +1691,7 @@ true
 ```
 
 *Declared by:*
- - [nixpkgs/nixos/modules/services/video/mirakurun\.nix](https://github.com/NixOS/nixpkgs/blob/dc5d91f840324650bac8c379428c7037a416959a/nixos/modules/services/video/mirakurun.nix)
+ - [nixpkgs/nixos/modules/services/video/mirakurun\.nix](https://github.com/NixOS/nixpkgs/blob/20b1ddd1aa5ace70c9468305030aa4f9ef79671b/nixos/modules/services/video/mirakurun.nix)
 
 
 
@@ -1740,7 +1740,7 @@ true
 ```
 
 *Declared by:*
- - [nixpkgs/nixos/modules/services/video/mirakurun\.nix](https://github.com/NixOS/nixpkgs/blob/dc5d91f840324650bac8c379428c7037a416959a/nixos/modules/services/video/mirakurun.nix)
+ - [nixpkgs/nixos/modules/services/video/mirakurun\.nix](https://github.com/NixOS/nixpkgs/blob/20b1ddd1aa5ace70c9468305030aa4f9ef79671b/nixos/modules/services/video/mirakurun.nix)
 
 
 
@@ -1783,7 +1783,7 @@ null
 ```
 
 *Declared by:*
- - [nixpkgs/nixos/modules/services/video/mirakurun\.nix](https://github.com/NixOS/nixpkgs/blob/dc5d91f840324650bac8c379428c7037a416959a/nixos/modules/services/video/mirakurun.nix)
+ - [nixpkgs/nixos/modules/services/video/mirakurun\.nix](https://github.com/NixOS/nixpkgs/blob/20b1ddd1aa5ace70c9468305030aa4f9ef79671b/nixos/modules/services/video/mirakurun.nix)
 
 
 
@@ -1811,7 +1811,7 @@ false
 ```
 
 *Declared by:*
- - [nixpkgs/nixos/modules/services/video/mirakurun\.nix](https://github.com/NixOS/nixpkgs/blob/dc5d91f840324650bac8c379428c7037a416959a/nixos/modules/services/video/mirakurun.nix)
+ - [nixpkgs/nixos/modules/services/video/mirakurun\.nix](https://github.com/NixOS/nixpkgs/blob/20b1ddd1aa5ace70c9468305030aa4f9ef79671b/nixos/modules/services/video/mirakurun.nix)
 
 
 
@@ -1836,7 +1836,7 @@ null or 16 bit unsigned integer; between 0 and 65535 (both inclusive)
 ```
 
 *Declared by:*
- - [nixpkgs/nixos/modules/services/video/mirakurun\.nix](https://github.com/NixOS/nixpkgs/blob/dc5d91f840324650bac8c379428c7037a416959a/nixos/modules/services/video/mirakurun.nix)
+ - [nixpkgs/nixos/modules/services/video/mirakurun\.nix](https://github.com/NixOS/nixpkgs/blob/20b1ddd1aa5ace70c9468305030aa4f9ef79671b/nixos/modules/services/video/mirakurun.nix)
 
 
 
@@ -1875,7 +1875,7 @@ YAML 1\.1 value
 ```
 
 *Declared by:*
- - [nixpkgs/nixos/modules/services/video/mirakurun\.nix](https://github.com/NixOS/nixpkgs/blob/dc5d91f840324650bac8c379428c7037a416959a/nixos/modules/services/video/mirakurun.nix)
+ - [nixpkgs/nixos/modules/services/video/mirakurun\.nix](https://github.com/NixOS/nixpkgs/blob/20b1ddd1aa5ace70c9468305030aa4f9ef79671b/nixos/modules/services/video/mirakurun.nix)
 
 
 
@@ -1942,7 +1942,7 @@ null
 ```
 
 *Declared by:*
- - [nixpkgs/nixos/modules/services/video/mirakurun\.nix](https://github.com/NixOS/nixpkgs/blob/dc5d91f840324650bac8c379428c7037a416959a/nixos/modules/services/video/mirakurun.nix)
+ - [nixpkgs/nixos/modules/services/video/mirakurun\.nix](https://github.com/NixOS/nixpkgs/blob/20b1ddd1aa5ace70c9468305030aa4f9ef79671b/nixos/modules/services/video/mirakurun.nix)
 
 
 
@@ -1967,6 +1967,6 @@ null or absolute path
 ```
 
 *Declared by:*
- - [nixpkgs/nixos/modules/services/video/mirakurun\.nix](https://github.com/NixOS/nixpkgs/blob/dc5d91f840324650bac8c379428c7037a416959a/nixos/modules/services/video/mirakurun.nix)
+ - [nixpkgs/nixos/modules/services/video/mirakurun\.nix](https://github.com/NixOS/nixpkgs/blob/20b1ddd1aa5ace70c9468305030aa4f9ef79671b/nixos/modules/services/video/mirakurun.nix)
 
 
