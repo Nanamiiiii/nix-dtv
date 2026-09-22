@@ -207,7 +207,20 @@ pkgs.testers.runNixOSTest {
     assert machine.succeed("sha256sum /var/lib/edcb/ssl_cert.pem") == certificate_hash
     machine.succeed("systemctl stop edcb")
     machine.succeed("echo custom >> /var/lib/edcb/Setting/HttpPublic.ini")
+    # Simulate links left by a previous BonDriver selection, including dangling links.
+    for suffix in [".so", ".so.ini"]:
+        machine.succeed(f"ln -s ${customSettingsFile} /var/lib/edcb/lib/BonDriver_Removed{suffix}")
+        machine.succeed(f"ln -s /nix/store/missing-driver /var/lib/edcb/lib/BonDriver_Dangling{suffix}")
+        machine.succeed(f"echo manual > /var/lib/edcb/lib/BonDriver_Manual{suffix}")
+        machine.succeed(f"ln -s /opt/missing-driver /var/lib/edcb/lib/BonDriver_External{suffix}")
     machine.succeed("/run/current-system/activate")
+    for suffix in [".so", ".so.ini"]:
+        for name in ["Removed", "Dangling"]:
+            machine.succeed(f"test ! -L /var/lib/edcb/lib/BonDriver_{name}{suffix}")
+        machine.succeed(f"grep -Fx manual /var/lib/edcb/lib/BonDriver_Manual{suffix}")
+        machine.succeed(f"test $(readlink /var/lib/edcb/lib/BonDriver_External{suffix}) = /opt/missing-driver")
+        machine.succeed(f"test -L /var/lib/edcb/lib/BonDriver_Custom{suffix}")
+    machine.succeed("test -L /var/lib/edcb/lib/RecName_Macro.so")
     machine.succeed("grep -Fx custom /var/lib/edcb/Setting/HttpPublic.ini")
     for _ in range(2):
         machine.succeed("/run/current-system/activate")

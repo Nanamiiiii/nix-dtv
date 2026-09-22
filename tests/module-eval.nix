@@ -622,7 +622,7 @@ assert cfg.services.edcb.recNameMacroSettings.SET.Macro == "$ZtoH(Title)$.ts";
 assert (builtins.elemAt cfg.services.edcb.bondriver 0).settingsFile == null;
 assert builtins.elem customSettingsFile cfg.systemd.services.edcb.restartTriggers;
 assert
-  !(nixpkgs.lib.hasInfix "BonDriver_Custom.so.ini" cfg.system.activationScripts.edcb-unmanage-files.text);
+  !(nixpkgs.lib.hasInfix "removeEdcbStoreLink /var/lib/edcb/lib/BonDriver_Custom.so.ini" cfg.system.activationScripts.edcb-unmanage-files.text);
 assert (builtins.elemAt cfg.services.edcb.bondriver 0).settings.GLOBAL.PRIORITY == 5;
 assert !((builtins.elemAt cfg.services.edcb.bondriver 0).settings.GLOBAL ? SERVER_HOST);
 assert !((builtins.elemAt cfg.services.edcb.bondriver 0).settings.GLOBAL ? DECODE_B25);

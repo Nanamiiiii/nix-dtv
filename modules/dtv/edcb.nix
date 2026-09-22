@@ -484,6 +484,21 @@ in
           esac
         fi
       }
+      # tmpfiles does not remove links whose rules have been withdrawn.
+      for filePath in ${runtimeLibDir}/BonDriver*.so ${runtimeLibDir}/BonDriver*.so.ini; do
+        case "$filePath" in
+          ${
+            lib.concatStringsSep "|" (
+              [ "''" ]
+              ++ lib.concatMap (driver: [
+                (lib.escapeShellArg "${runtimeLibDir}/${driver.name}")
+                (lib.escapeShellArg "${runtimeLibDir}/${driver.name}.ini")
+              ]) selectedDrivers
+            )
+          }) ;;
+          *) removeEdcbStoreLink "$filePath" ;;
+        esac
+      done
       ${lib.concatMapStringsSep "\n" (
         file: "removeEdcbStoreLink ${lib.escapeShellArg file.path}"
       ) unmanagedIniFiles}
