@@ -74,8 +74,8 @@ in
       services.konomitv = {
         enable = lib.mkDefault cfg.konomitv.enable;
         recordingDir = lib.mkDefault cfg.recordingDir;
-        edcbPort = lib.mkDefault config.services.edcb.tcpPort;
-        mirakurunPort = lib.mkDefault config.services.mirakurun.port;
+        edcbPort = lib.mkIf cfg.edcb.enable (lib.mkDefault config.services.edcb.tcpPort);
+        mirakurunPort = lib.mkIf cfg.mirakurun.enable (lib.mkDefault config.services.mirakurun.port);
         backend = lib.mkIf (cfg.mirakurun.enable && !cfg.edcb.enable) (lib.mkDefault "Mirakurun");
         streamFromMirakurun = lib.mkIf (cfg.mirakurun.enable && cfg.edcb.enable) (lib.mkDefault true);
         openFirewall = lib.mkDefault cfg.openFirewall;

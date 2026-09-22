@@ -189,6 +189,9 @@ let
               mirakurun.enable = case.mirakurun;
               edcb.enable = case.edcb;
             };
+            # Non-default ports expose accidental propagation from disabled services.
+            services.edcb.tcpPort = 14510;
+            services.mirakurun.port = 14077;
           }
         ];
       };
@@ -197,10 +200,17 @@ let
       ) evaluatedCase.config.assertions;
       missingBackend = case.konomitv && !case.mirakurun && !case.edcb;
     in
-    if case.enable && missingBackend then
-      builtins.length failedBackendAssertions == 1
-    else
-      failedBackendAssertions == [ ];
+    evaluatedCase.config.services.konomitv.edcbPort
+    == (if case.enable && case.edcb then 14510 else 4510)
+    &&
+      evaluatedCase.config.services.konomitv.mirakurunPort
+      == (if case.enable && case.mirakurun then 14077 else 40772)
+    && (
+      if case.enable && missingBackend then
+        builtins.length failedBackendAssertions == 1
+      else
+        failedBackendAssertions == [ ]
+    );
   standaloneKonomitv = nixpkgs.lib.nixosSystem {
     inherit system;
     modules = [
