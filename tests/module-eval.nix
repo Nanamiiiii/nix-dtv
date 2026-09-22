@@ -30,10 +30,14 @@ let
         services.edcb.settingsImmutable = true;
         services.edcb.commonSettingsImmutable = true;
         services.edcb.epgDataCapBonSettingsImmutable = true;
-        services.edcb.recNameMacroSettingsImmutable = true;
         services.edcb.materialWebUI.enable = true;
         services.edcb.epgDataCapBonSettings.SET.TsBuffMaxCount = 5000;
-        services.edcb.recNameMacroSettings.SET.Macro = "$ZtoH(Title)$.ts";
+        services.edcb.plugins = [
+          {
+            name = "RecName_Macro.so";
+            settings.SET.Macro = "$ZtoH(Title)$.ts";
+          }
+        ];
         services.edcb.bondriver = [
           {
             driverPath = "${pkgs.bondriver-linux-mirakc}/lib/BonDriver_LinuxMirakc.so";
@@ -239,6 +243,9 @@ let
     mkdir -p "$out/other"
     touch "$out/other/BonDriver_Custom.so"
   '';
+  emptyPlugin = evaluated.extendModules {
+    modules = [ { services.edcb.plugins = [ { name = "Write_Empty.so"; } ]; } ];
+  };
   duplicateBinary = evaluated.extendModules {
     modules = [
       {
@@ -301,7 +308,6 @@ let
           commonSettingsImmutable = nixpkgs.lib.mkForce false;
           commonSettings = { };
           epgDataCapBonSettingsImmutable = nixpkgs.lib.mkForce false;
-          recNameMacroSettingsImmutable = nixpkgs.lib.mkForce false;
         };
       }
     ];
@@ -423,6 +429,9 @@ assert nixpkgs.lib.any (
 assert !(cfg.hardware ? dtv);
 assert builtins.all checkKonomitvBackend konomitvBackendCases;
 assert defaultDtv.config.services.edcb.bondriver == [ ];
+assert nixpkgs.lib.any (
+  a: !a.assertion && nixpkgs.lib.hasInfix "requires at least one of pluginPath" a.message
+) emptyPlugin.config.assertions;
 assert defaultDtv.config.services.konomitv.backend == "EDCB";
 assert !defaultDtv.config.services.konomitv.streamFromMirakurun;
 assert dtvWithMirakurun.config.services.konomitv.backend == "EDCB";
@@ -515,7 +524,6 @@ assert nixpkgs.lib.hasInfix "ssl_cert.pem" mergedSettings.config.systemd.service
 assert builtins.elem "users"
   mergedSettings.config.system.activationScripts.edcb-merge-settings.deps;
 assert cfg.services.edcb.epgDataCapBonSettingsImmutable;
-assert cfg.services.edcb.recNameMacroSettingsImmutable;
 assert nixpkgs.lib.all
   (
     name:
@@ -528,7 +536,6 @@ assert nixpkgs.lib.all
     "EpgTimerSrv.ini"
     "Common.ini"
     "EpgDataCap_Bon.ini"
-    "RecName_Macro.so.ini"
   ];
 assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/EpgTimerSrv.ini ")
   cfg.systemd.tmpfiles.rules;
@@ -618,7 +625,10 @@ assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/Bitrate.ini ")
 assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/BonCtrl.ini ")
   cfg.systemd.tmpfiles.rules;
 assert cfg.services.edcb.epgDataCapBonSettings.SET.TsBuffMaxCount == 5000;
-assert cfg.services.edcb.recNameMacroSettings.SET.Macro == "$ZtoH(Title)$.ts";
+assert (builtins.head cfg.services.edcb.plugins).pluginPath == null;
+assert (builtins.head cfg.services.edcb.plugins).settings.SET.Macro == "$ZtoH(Title)$.ts";
+assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "L+ /var/lib/edcb/RecName_Macro.so.ini ")
+  cfg.systemd.tmpfiles.rules;
 assert (builtins.elemAt cfg.services.edcb.bondriver 0).settingsFile == null;
 assert builtins.elem customSettingsFile cfg.systemd.services.edcb.restartTriggers;
 assert

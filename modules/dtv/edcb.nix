@@ -85,6 +85,19 @@ let
     driver: "L+ ${runtimeLibDir}/${driver.name} - - - - ${driver.driverPath}"
   ) selectedDrivers;
 
+  pluginIniFiles = map (plugin: {
+    name = "${plugin.name}.ini";
+    path = "/var/lib/edcb/${plugin.name}.ini";
+    settings = plugin.settings;
+    settingsFile = plugin.settingsFile;
+  }) cfg.plugins;
+
+  binaryPlugins = lib.filter (plugin: plugin.pluginPath != null) cfg.plugins;
+
+  pluginLibraryLinks = map (
+    plugin: "L+ ${runtimeLibDir}/${plugin.name} - - - - ${plugin.pluginPath}"
+  ) binaryPlugins;
+
   iniFiles = [
     {
       name = "EpgTimerSrv.ini";
@@ -104,14 +117,9 @@ let
       immutable = cfg.epgDataCapBonSettingsImmutable;
       settings = cfg.epgDataCapBonSettings;
     }
-    {
-      name = "RecName_Macro.so.ini";
-      path = "/var/lib/edcb/RecName_Macro.so.ini";
-      immutable = cfg.recNameMacroSettingsImmutable;
-      settings = cfg.recNameMacroSettings;
-    }
   ]
-  ++ bonDriverIniFiles;
+  ++ bonDriverIniFiles
+  ++ pluginIniFiles;
 
   resolvedIniFiles = map (
     file:
@@ -282,17 +290,46 @@ in
       description = "Managed EpgDataCap_Bon.ini settings. Null leaves the file unmanaged.";
     };
 
-    recNameMacroSettingsImmutable = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Link the generated INI from the Nix store. When false, merge Nix settings into the existing writable INI during system activation, with Nix values taking precedence. Has no effect when recNameMacroSettings is null.";
-    };
+    plugins = lib.mkOption {
+      type = lib.types.listOf (
+        lib.types.submodule (
+          { config, ... }:
+          {
+            options = {
+              pluginPath = lib.mkOption {
+                type = lib.types.nullOr lib.types.str;
+                default = null;
+                description = "Absolute path to the plugin binary, normally inside the Nix store. Null installs only the INI file.";
+              };
 
-    recNameMacroSettings = lib.mkOption {
-      type = lib.types.nullOr ini.type;
-      default = null;
-      example.SET.Macro = "$ZtoH(Title)$.ts";
-      description = "Managed RecName_Macro.so.ini settings. Null leaves the file unmanaged.";
+              name = lib.mkOption (
+                {
+                  type = lib.types.str;
+                  defaultText = lib.literalExpression "builtins.baseNameOf pluginPath";
+                  description = "Filename used for the plugin symlink in /var/lib/edcb/lib. The INI symlink uses /var/lib/edcb/<name>.ini. Defaults to the basename of pluginPath; must be specified when pluginPath is null.";
+                }
+                // lib.optionalAttrs (config.pluginPath != null) {
+                  default = builtins.baseNameOf config.pluginPath;
+                }
+              );
+
+              settingsFile = lib.mkOption {
+                type = lib.types.nullOr lib.types.path;
+                default = null;
+                description = "Existing INI file to link as /var/lib/edcb/<name>.ini. Takes precedence over settings.";
+              };
+
+              settings = lib.mkOption {
+                type = lib.types.nullOr (pkgs.formats.ini { }).type;
+                default = null;
+                description = "INI settings linked as /var/lib/edcb/<name>.ini. Used when settingsFile is null; null leaves the INI unmanaged if settingsFile is also null.";
+              };
+            };
+          }
+        )
+      );
+      default = [ ];
+      description = "Plugin definitions to install in runtime library path.";
     };
 
     materialWebUI = {
@@ -423,6 +460,10 @@ in
         message = "services.edcb.bondriver selects drivers with duplicate names.";
       }
     ]
+    ++ map (plugin: {
+      assertion = plugin.pluginPath != null || plugin.settings != null || plugin.settingsFile != null;
+      message = "services.edcb.plugins requires at least one of pluginPath, settings or settingsFile for each plugin.";
+    }) cfg.plugins
     ++ map (driver: {
       assertion =
         lib.hasPrefix "/" driver.driverPath
@@ -470,6 +511,7 @@ in
         "C /var/lib/edcb/Setting/XCODE_OPTIONS.lua 0640 edcb edcb - ${webUIRoot}/Setting/XCODE_OPTIONS.lua"
       ]
       ++ bonDriverLibraryLinks
+      ++ pluginLibraryLinks
       ++ map (file: "L+ ${file.path} - - - - ${file.source}") linkedIniFiles
       ++ map (name: "L+ ${runtimeLibDir}/${name} - - - - ${cfg.package}/lib/edcb/${name}") edcbLibraries;
 
@@ -547,6 +589,7 @@ in
       restartTriggers =
         map (file: file.source) configuredIniFiles
         ++ map (driver: driver.driverPath) selectedDrivers
+        ++ map (plugin: plugin.pluginPath) binaryPlugins
         ++ lib.optional cfg.materialWebUI.enable cfg.materialWebUI.package;
       preStart = lib.optionalString cfg.materialWebUI.enable ''
         certificate=/var/lib/edcb/ssl_cert.pem

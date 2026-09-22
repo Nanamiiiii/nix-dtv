@@ -32,6 +32,10 @@ let
     [GLOBAL]
     PRIORITY=17
   '';
+  fakePlugin = pkgs.runCommand "fake-edcb-plugin" { } ''
+    mkdir -p "$out/lib"
+    touch "$out/lib/Write_Custom.so"
+  '';
 in
 pkgs.testers.runNixOSTest {
   node.pkgsReadOnly = false;
@@ -43,6 +47,35 @@ pkgs.testers.runNixOSTest {
     services.edcb = {
       enable = true;
       package = fakeEdcb;
+      plugins = [
+        {
+          name = "RecName_Macro.so";
+          settings.SET.Macro = "$ZtoH(Title)$.ts";
+        }
+        {
+          pluginPath = "${fakePlugin}/lib/Write_Custom.so";
+          settings.SET.Value = 42;
+        }
+        {
+          pluginPath = "${fakePlugin}/lib/Write_Custom.so";
+          name = "Write_File.so";
+          settings.SET.Value = 99;
+          settingsFile = customSettingsFile;
+        }
+        {
+          pluginPath = "${fakePlugin}/lib/Write_Custom.so";
+          name = "Write_Unmanaged.so";
+        }
+        {
+          pluginPath = null;
+          name = "Write_SettingsOnly.so";
+          settings.SET.Value = 73;
+        }
+        {
+          name = "Write_FileOnly.so";
+          settingsFile = customSettingsFile;
+        }
+      ];
       materialWebUI = {
         enable = true;
         package = fakeWebUI;
@@ -106,8 +139,6 @@ pkgs.testers.runNixOSTest {
         TsBuffMaxCount = 5000;
         WriteBuffMaxCount = -1;
       };
-      recNameMacroSettingsImmutable = false;
-      recNameMacroSettings.SET.Macro = "$ZtoH(Title)$.ts";
     };
   };
   testScript = ''
@@ -137,6 +168,19 @@ pkgs.testers.runNixOSTest {
     machine.succeed("${pkgs.openssl}/bin/openssl x509 -in /var/lib/edcb/ssl_cert.pem -noout -ext subjectAltName | grep -F 'DNS:tv.example.com'")
     certificate_hash = machine.succeed("sha256sum /var/lib/edcb/ssl_cert.pem")
     machine.succeed("test -L /var/lib/edcb/lib/BonDriver_LinuxMirakc.so")
+    for name in ["Write_Custom.so", "Write_File.so", "Write_Unmanaged.so"]:
+        machine.succeed(f"test $(readlink /var/lib/edcb/lib/{name}) = ${fakePlugin}/lib/Write_Custom.so")
+        machine.fail(f"test -e /var/lib/edcb/lib/{name}.ini")
+    machine.succeed("test -L /var/lib/edcb/Write_Custom.so.ini")
+    machine.succeed("grep -Fx 'Value=42' /var/lib/edcb/Write_Custom.so.ini")
+    machine.succeed("test $(readlink /var/lib/edcb/Write_File.so.ini) = ${customSettingsFile}")
+    machine.succeed("cmp /var/lib/edcb/Write_File.so.ini ${customSettingsFile}")
+    machine.fail("test -e /var/lib/edcb/Write_Unmanaged.so.ini")
+    machine.succeed("grep -Fx 'Value=73' /var/lib/edcb/Write_SettingsOnly.so.ini")
+    machine.succeed("test $(readlink /var/lib/edcb/Write_FileOnly.so.ini) = ${customSettingsFile}")
+    for name in ["Write_SettingsOnly.so", "Write_FileOnly.so"]:
+        machine.fail(f"test -L /var/lib/edcb/lib/{name}")
+        machine.fail(f"test -e /var/lib/edcb/lib/{name}")
     machine.succeed("test -L /var/lib/edcb/lib/BonDriver_Custom.so")
     machine.succeed("test -L /var/lib/edcb/lib/BonDriver_Custom_2.so")
     machine.succeed("test -L /var/lib/edcb/lib/BonDriver_Custom_2.so.ini")
@@ -183,13 +227,13 @@ pkgs.testers.runNixOSTest {
     machine.succeed("grep -F 'TsBuffMaxCount=5000' /var/lib/edcb/EpgDataCap_Bon.ini")
     machine.succeed("grep -F 'WriteBuffMaxCount=-1' /var/lib/edcb/EpgDataCap_Bon.ini")
     machine.succeed("grep -F 'Macro=$ZtoH(Title)$.ts' /var/lib/edcb/RecName_Macro.so.ini")
+    machine.succeed("test -L /var/lib/edcb/RecName_Macro.so.ini")
     import base64
 
     files = {
         "EpgTimerSrv.ini": ("EnableHttpSrv", "1"),
         "Common.ini": ("RecFolderPath0", "/mnt/tv/recordings"),
         "EpgDataCap_Bon.ini": ("TsBuffMaxCount", "5000"),
-        "RecName_Macro.so.ini": ("Macro", "$ZtoH(Title)$.ts"),
     }
     machine.succeed("systemctl stop edcb")
     for name, (key, value) in files.items():
