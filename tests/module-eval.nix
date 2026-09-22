@@ -157,6 +157,50 @@ let
   dtvMirakurunOnly = dtvWithMirakurun.extendModules {
     modules = [ { services.dtv.edcb.enable = nixpkgs.lib.mkForce false; } ];
   };
+  konomitvBackendCases = nixpkgs.lib.cartesianProduct {
+    enable = [
+      false
+      true
+    ];
+    konomitv = [
+      false
+      true
+    ];
+    mirakurun = [
+      false
+      true
+    ];
+    edcb = [
+      false
+      true
+    ];
+  };
+  checkKonomitvBackend =
+    case:
+    let
+      evaluatedCase = nixpkgs.lib.nixosSystem {
+        inherit system;
+        modules = [
+          self.nixosModules.nix-dtv
+          {
+            services.dtv = {
+              inherit (case) enable;
+              konomitv.enable = case.konomitv;
+              mirakurun.enable = case.mirakurun;
+              edcb.enable = case.edcb;
+            };
+          }
+        ];
+      };
+      failedBackendAssertions = builtins.filter (
+        a: !a.assertion && a.message == "KonomiTV requires at least one of EDCB or Mirakurun."
+      ) evaluatedCase.config.assertions;
+      missingBackend = case.konomitv && !case.mirakurun && !case.edcb;
+    in
+    if case.enable && missingBackend then
+      builtins.length failedBackendAssertions == 1
+    else
+      failedBackendAssertions == [ ];
   standaloneKonomitv = nixpkgs.lib.nixosSystem {
     inherit system;
     modules = [
@@ -367,6 +411,7 @@ assert nixpkgs.lib.any (
   a: !a.assertion && nixpkgs.lib.hasInfix "duplicate names" a.message
 ) duplicateBinary.config.assertions;
 assert !(cfg.hardware ? dtv);
+assert builtins.all checkKonomitvBackend konomitvBackendCases;
 assert defaultDtv.config.services.edcb.bondriver == [ ];
 assert defaultDtv.config.services.konomitv.backend == "EDCB";
 assert !defaultDtv.config.services.konomitv.streamFromMirakurun;

@@ -45,6 +45,14 @@ in
   config = lib.mkMerge [
     { nixpkgs.overlays = [ (import ../../overlays) ]; }
     (lib.mkIf cfg.enable {
+      # assertions
+      assertions = [
+        {
+          assertion = !cfg.konomitv.enable || (cfg.mirakurun.enable || cfg.edcb.enable);
+          message = "KonomiTV requires at least one of EDCB or Mirakurun.";
+        }
+      ];
+
       # enable px4_drv kernel module
       hardware.px4_drv.enable = lib.mkDefault cfg.px4_drv.enable;
 
