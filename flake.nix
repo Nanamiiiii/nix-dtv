@@ -30,6 +30,56 @@
         // pkgs.edcbExtraTools
         // {
           default = pkgs.mirakurun;
+          optionsDoc =
+            let
+              evaluated = nixpkgs.lib.nixosSystem {
+                inherit system;
+                modules = [ ./modules/dtv ];
+              };
+              optionsDoc = pkgs.nixosOptionsDoc {
+                options = {
+                  services = {
+                    inherit (evaluated.options.services)
+                      dtv
+                      mirakurun
+                      edcb
+                      konomitv
+                      ;
+                  };
+                  hardware = {
+                    inherit (evaluated.options.hardware) px4_drv;
+                  };
+                };
+                transformOptions =
+                  option:
+                  option
+                  // {
+                    declarations = map (
+                      declaration:
+                      let
+                        path = toString declaration;
+                        localPrefix = "${self}/";
+                        nixpkgsPrefix = "${nixpkgs}/";
+                      in
+                      if nixpkgs.lib.hasPrefix localPrefix path then
+                        {
+                          name = nixpkgs.lib.removePrefix localPrefix path;
+                          url = "../${nixpkgs.lib.removePrefix localPrefix path}";
+                        }
+                      else if nixpkgs.lib.hasPrefix nixpkgsPrefix path then
+                        {
+                          name = "nixpkgs/${nixpkgs.lib.removePrefix nixpkgsPrefix path}";
+                          url = "https://github.com/NixOS/nixpkgs/blob/${nixpkgs.rev}/${nixpkgs.lib.removePrefix nixpkgsPrefix path}";
+                        }
+                      else
+                        declaration
+                    ) option.declarations;
+                  };
+              };
+            in
+            pkgs.runCommand "options.md" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+              python ${./docs/add-toc.py} ${optionsDoc.optionsCommonMark} "$out"
+            '';
         }
       );
 

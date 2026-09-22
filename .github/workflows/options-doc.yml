@@ -1,0 +1,101 @@
+name: Update options reference
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: options-doc-${{ github.event.pull_request.number || 'main' }}
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      revision: ${{ steps.revision.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || 'main' }}
+          persist-credentials: false
+
+      - name: Record source revision
+        id: revision
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Generate options reference
+        run: |
+          nix build .#optionsDoc --out-link result-options
+          install -m 644 result-options docs/options.md
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: options-doc
+          path: docs/options.md
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Explain fork PR handling
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: echo 'Fork PRs cannot be updated with GITHUB_TOKEN. Download the options-doc artifact or regenerate docs/options.md locally.' >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    needs: generate
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.generate.outputs.revision }}
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: options-doc
+          path: docs
+
+      - name: Commit generated changes to the PR branch
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          git add -- docs/options.md
+          if git diff --cached --quiet; then
+            echo 'Options reference is already up to date.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git config user.name 'github-actions'
+          git config user.email '52265804+github-actions@users.noreply.github.com'
+          git -c core.hooksPath=/dev/null commit -m 'docs: update options reference'
+          # Never overwrite commits pushed while the document was being generated.
+          git push origin "HEAD:refs/heads/$PR_BRANCH"
+
+      - name: Create or update the documentation PR
+        if: github.event_name != 'pull_request'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: main
+          branch: automation/options-doc
+          add-paths: docs/options.md
+          commit-message: 'docs: update options reference'
+          title: 'docs: update options reference'
+          body: |
+            Regenerate `docs/options.md` using `nix build .#optionsDoc`.
+
+            This PR is maintained automatically by the options reference workflow.
+          delete-branch: true
