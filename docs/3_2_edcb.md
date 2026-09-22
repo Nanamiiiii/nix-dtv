@@ -31,13 +31,12 @@ WebUIなどを経由して調整した後，運用が安定したらImmutableに
 ```nix
 {
   services.edcb.settings = {
-    SET = {
-      EnableHttpSrv = 1;
-      HttpPort = 5510;
-    };
+    SET.EnableHttpSrv = 1;
   };
 }
 ```
+
+HTTPの待受ポートは `httpPorts`，HTTPSの待受ポートは `httpsPorts` で指定する．`settings.SET.HttpPort` はこれらの値から生成されるため，直接指定しても上書きされる．
 
 完全にNix管理下に置く場合，`settingsImmutable = true` を指定する．
 ```nix
@@ -138,7 +137,7 @@ EDCBは，`EDCB_LIB_ROOT` へ配置された `BonDriver_*.so` といった名前
       # BonDriverの実体
       driverPath = "${pkgs.bondriver-linux-mirakc}/lib/BonDriver_LinuxMirakc.so";
       
-      # BonDriver固有設定 <name>.ini としてEDCB_INI_ROOTへ配置される
+      # BonDriver固有設定 <name>.ini としてEDCB_LIB_ROOT (/var/lib/edcb/lib) へ配置される
       # セクション，キー，値についてはBonDriver固有
       settings = {
         GLOBAL = {
@@ -171,7 +170,7 @@ Num=1
 
 ## 録画ディレクトリ
 `recordingDir`で録画ディレクトリを設定する．ここで設定されたディレクトリは `Common.ini` の `RecFolderPath[0-9]+` へ追加される．  
-また，`edcb` グルーブへ書き込み権限が付与される．
+また，`recordingGroup`（デフォルトは `dtv`）で指定したグループへ書き込み権限が付与され，`edcb` ユーザーがそのグループに追加される．
 
 ```nix
 {

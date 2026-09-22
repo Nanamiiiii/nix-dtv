@@ -7,7 +7,7 @@ NixOS上で日本国内のDTV視聴・録画環境を構築するNixOS moduleと
 
 ## Index
 - [Why Nix?](./0_why-nix.md)
-- [Getting Started](./1_getting_started.md)
+- [Getting Started](./1_getting-started.md)
 - [Packages](./2_packages.md)
 - [Configuration](./3_configuration.md)
   - [Mirakurun](./3_1_mirakurun.md)

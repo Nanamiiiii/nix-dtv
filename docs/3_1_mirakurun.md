@@ -12,11 +12,11 @@
 ```nix
 {
   services.mirakurun = {
-    logLevel = 2;
     unixSocket = "/var/run/mirakurun/mirakurun.sock";
     port = 40772;
 
     serverSettings = {
+      logLevel = 2;
       hostname = "tv.example.com";
       allowIPv4CidrRanges = [
         "172.16.0.0/24"
@@ -36,7 +36,7 @@
     {
       name = "PX4-S1";
       types = [ "GR" ];
-      command = "recisdb tune --device /dev/px4video0 --channel <channel><satellite>-";
+      command = "recisdb tune --device /dev/px4video0 --channel <channel><satellite> -";
     }
   ];
 }

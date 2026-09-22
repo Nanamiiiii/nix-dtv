@@ -4,12 +4,12 @@
 
 | Package                  | Source                                            | Version                   |
 | ------------------------ | ------------------------------------------------- | ------------------------- |
-| `px4_drv`                | https://github.com/tsukumijima/px4_drv            | 0.6.0                     |
+| `px4_drv`                | https://github.com/tsukumijima/px4_drv            | 0.6.1                     |
 | `mirakurun`              | https://github.com/Chinachu/Mirakurun             | 4.1.3                     |
-| `recisdb`                | https://github.com/kazuki0824/recisdb-rs          | 1.2.4-unstable-2026-08-22 |
+| `recisdb`                | https://github.com/kazuki0824/recisdb-rs          | 1.2.4-unstable-2026-09-19 |
 | `isdb-scanner`           | https://github.com/tsukumijima/ISDBScanner        | 1.3.3                     |
-| `edcb`                   | https://github.com/xtne6f/EDCB                    | work-plus-s-2026-09-04    |
-| `edcb-material-webui`    | https://github.com/EMWUI/EDCB_Material_WebUI      | 3-unstable-2026-09-19     |
+| `edcb`                   | https://github.com/xtne6f/EDCB                    | work-plus-s-260904    |
+| `edcb-material-webui`    | https://github.com/EMWUI/EDCB_Material_WebUI      | 3-unstable-2026-09-22     |
 | `bondriver-linux-mirakc` | https://github.com/matching/BonDriver_LinuxMirakc | 0-unstable-2024-10-14     |
 
 現状は作者自身の環境で使用するものだけをパッケージングしていますが，以下は追加するかもしれません．

@@ -9,7 +9,7 @@
 
 ## Quick Start
 px4_drv + Mirakurun + EDCB + KonomiTV が連携動作する最小構成の一例．  
-作者の構成例は[こちら](https://github.com/Nanamiiiii/dotfiles/blob/968893fc0a5433ff3699cd838b50ae58845783d3/profiles/mafu/dtv.nix).
+作者の構成例は[こちら](https://github.com/Nanamiiiii/dotfiles/blob/main/profiles/mafu/dtv.nix).
 
 ### モジュールの導入
 nix flakesの使用を前提としています．`niv`や`fetchTarball`を使用することも可能かと思いますが，未検証のためここでは言及しません．
@@ -39,7 +39,7 @@ nix flakesの使用を前提としています．`niv`や`fetchTarball`を使用
 `configuration.nix`で必要な設定をします．
 
 ```nix
-{ pkgs, ... }: 
+{ config, pkgs, ... }:
 {
   # px4_drvに含まれるファームウェアのため
   nixpkgs.config.allowUnfree = true;
@@ -135,8 +135,8 @@ sudo -u mirakurun cp ./scanned/Mirakurun/channels.yml /etc/mirakurun/channels.ym
 ```
 
 ### EpgDataCap_Bon
-EDCB用のチャンネルデータを生成します．BonDriverが正しく配置されていれば，以下でスキャン可能です．`EpgDataCap_Bon` は `service.edcb` 有効時にパスに追加されます．
+EDCB用のチャンネルデータを生成します．BonDriverが正しく配置されていれば，以下でスキャン可能です．`EpgDataCap_Bon` は `services.edcb.enable = true` のときにシステムのパスに追加されます．BonDriverへのアクセスとスキャン結果の保存に必要な権限を持つ `edcb` ユーザーで実行してください．
 ```bash
 # BonDriver_LinuxMirakcの場合
-EpgDataCap_Bon -d BonDriver_LinuxMirakc.so -chscan
+sudo -u edcb /run/current-system/sw/bin/EpgDataCap_Bon -d BonDriver_LinuxMirakc.so -chscan
 ```

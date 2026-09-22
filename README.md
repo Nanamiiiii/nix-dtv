@@ -30,7 +30,7 @@ An example of px4_drv + Mirakurun + EDCB + KonomiTV environment.
       system = "x86_64-linux";
       modules = [
         nix-dtv.nixosModules.default
-        ({ pkgs, ... }: {
+        ({ config, pkgs, ... }: {
           # For the firmware included in px4_drv
           nixpkgs.config.allowUnfree = true;
 
