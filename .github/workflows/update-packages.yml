@@ -1,0 +1,93 @@
+name: Update nix packages
+
+on:
+  schedule:
+    - cron: '0 19 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-packages
+  cancel-in-progress: false
+
+jobs:
+  update:
+    if: github.event_name != 'workflow_dispatch' || github.ref_name == github.event.repository.default_branch
+    name: Update ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+      pull-requests: write
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        package:
+          - isdb-scanner
+          - mirakurun
+          - px4_drv
+          - edcb
+          - edcb-material-webui
+          - bondriver-linux-mirakc
+          - recisdb
+          - b24tovtt
+          - psisiarc
+          - psisimux
+          - tsreadex
+          - tsmemseg
+    env:
+      PACKAGE: ${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - uses: cachix/install-nix-action@v31.11.1
+
+      - name: Update package and dependency hashes
+        run: nix run .#update-packages -- "$PACKAGE"
+
+      - name: Inspect changes
+        id: changes
+        run: |
+          git --no-pager diff --check
+          if git --no-pager diff --quiet -- "pkgs/$PACKAGE/"; then
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+          fi
+          version=$(nix eval --raw ".#packages.x86_64-linux.$PACKAGE.version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build package and run evaluation checks
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          nix build --no-link ".#packages.x86_64-linux.$PACKAGE" \
+            .#checks.x86_64-linux.update-packages \
+            .#checks.x86_64-linux.module-eval
+
+      - name: Create or update package PR
+        uses: peter-evans/create-pull-request@v8.1.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: ${{ github.event.repository.default_branch }}
+          branch: update/${{ matrix.package }}
+          add-paths: pkgs/${{ matrix.package }}/
+          commit-message: '${{ matrix.package }}: update to ${{ steps.changes.outputs.version }}'
+          title: '${{ matrix.package }}: update to ${{ steps.changes.outputs.version }}'
+          body: |
+            Update `${{ matrix.package }}` to `${{ steps.changes.outputs.version }}` using its configured upstream tracking policy.
+
+            Validation on x86_64-linux:
+            - Build the updated package
+            - Run update-packages and module-eval checks
+
+            This PR is maintained automatically, independently of other package updates.
+            PR workflows are not automatically triggered by `GITHUB_TOKEN`; validation runs in the update workflow instead.
+
+            Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          delete-branch: true
