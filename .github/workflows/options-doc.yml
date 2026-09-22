@@ -3,8 +3,20 @@ name: Update options reference
 on:
   push:
     branches: [main]
+    paths:
+      - 'modules/**'
+      - 'flake.nix'
+      - 'flake.lock'
+      - 'docs/add-toc.py'
+      - '.github/workflows/options-doc.yml'
   pull_request:
     types: [opened, synchronize, reopened]
+    paths:
+      - 'modules/**'
+      - 'flake.nix'
+      - 'flake.lock'
+      - 'docs/add-toc.py'
+      - '.github/workflows/options-doc.yml'
   workflow_dispatch:
 
 permissions:
