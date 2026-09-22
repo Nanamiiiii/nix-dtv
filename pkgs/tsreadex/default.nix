@@ -4,12 +4,12 @@
   stdenv,
 }:
 
-stdenv.mkDerivation {
+stdenv.mkDerivation rec {
   pname = "tsreadex";
   version = "master-260428";
 
   src = fetchurl {
-    url = "https://github.com/xtne6f/tsreadex/archive/refs/tags/master-260428.tar.gz";
+    url = "https://github.com/xtne6f/tsreadex/archive/refs/tags/${version}.tar.gz";
     hash = "sha256-pg+3qiILTf8Vs4TKKOdhgd5ZFI6L5IenKKORZd7lBSA=";
   };
 

@@ -7,14 +7,14 @@
   stdenv,
 }:
 
-buildNpmPackage {
+buildNpmPackage rec {
   pname = "mirakurun";
   version = "4.1.3";
 
   src = fetchFromGitHub {
     owner = "Chinachu";
     repo = "Mirakurun";
-    rev = "5770073e9b30d523512858ca82f45386f51a08fd";
+    rev = version;
     hash = "sha256-LkZuuWchGYK6CZJ5SPbPf5Xc02Dp77Nb/D2eexVY8Cg=";
   };
 

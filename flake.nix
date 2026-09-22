@@ -100,6 +100,32 @@
         }
       );
 
+      apps = forAllSystems (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+          updatePackages = pkgs.writeShellApplication {
+            name = "update-packages";
+            runtimeInputs = with pkgs; [
+              git
+              nix
+              nix-update
+              python3
+            ];
+            text = ''
+              exec python3 ${./scripts/update-packages.py} "$@"
+            '';
+          };
+        in
+        {
+          update-packages = {
+            type = "app";
+            program = "${updatePackages}/bin/update-packages";
+            meta.description = "Update DTV packages using their upstream tracking policies";
+          };
+        }
+      );
+
       formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt-tree);
     };
 }

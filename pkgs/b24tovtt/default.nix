@@ -4,12 +4,12 @@
   stdenv,
 }:
 
-stdenv.mkDerivation {
+stdenv.mkDerivation rec {
   pname = "b24tovtt";
   version = "master-220402";
 
   src = fetchurl {
-    url = "https://github.com/xtne6f/b24tovtt/archive/refs/tags/master-220402.tar.gz";
+    url = "https://github.com/xtne6f/b24tovtt/archive/refs/tags/${version}.tar.gz";
     hash = "sha256-H3MPwGrHXG5j4HfZwpfY5ay48YDCCPkPcdO3X4Dsb0c=";
   };
 

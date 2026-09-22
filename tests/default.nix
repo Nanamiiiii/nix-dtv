@@ -5,6 +5,12 @@
   system,
 }:
 {
+  update-packages =
+    pkgs.runCommand "update-packages-tests" { nativeBuildInputs = [ pkgs.python3 ]; }
+      ''
+        python3 -B ${../scripts}/test-update-packages.py
+        touch "$out"
+      '';
   px4_drv-package = pkgs.px4_drv;
   recisdb-package = pkgs.recisdb;
   isdb-scanner-package = pkgs.isdb-scanner;

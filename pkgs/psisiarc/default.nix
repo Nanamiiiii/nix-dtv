@@ -4,12 +4,12 @@
   stdenv,
 }:
 
-stdenv.mkDerivation {
+stdenv.mkDerivation rec {
   pname = "psisiarc";
   version = "master-230324";
 
   src = fetchurl {
-    url = "https://github.com/xtne6f/psisiarc/archive/refs/tags/master-230324.tar.gz";
+    url = "https://github.com/xtne6f/psisiarc/archive/refs/tags/${version}.tar.gz";
     hash = "sha256-VNGrSC3A0crtgNt4WOXEYW90mG9Sequ2nUQ+wEWtKgI=";
   };
 

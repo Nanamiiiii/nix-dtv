@@ -8,14 +8,14 @@
   stdenv,
 }:
 
-stdenv.mkDerivation {
+stdenv.mkDerivation rec {
   pname = "edcb";
-  version = "work-plus-s-2026-09-04";
+  version = "work-plus-s-260904";
 
   src = fetchFromGitHub {
     owner = "xtne6f";
     repo = "EDCB";
-    rev = "ebf50c730ccf8c1732e0bd8a4e2a3417a94d9b2b";
+    rev = version;
     hash = "sha256-XoPyWJA+LknTJpdQSdhICyHV/P1p+E2NhAfHLr/ghhs=";
   };
 

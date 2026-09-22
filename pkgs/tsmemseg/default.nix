@@ -4,12 +4,12 @@
   stdenv,
 }:
 
-stdenv.mkDerivation {
+stdenv.mkDerivation rec {
   pname = "tsmemseg";
   version = "master-with-d-260611";
 
   src = fetchurl {
-    url = "https://github.com/xtne6f/tsmemseg/archive/refs/tags/master-with-d-260611.tar.gz";
+    url = "https://github.com/xtne6f/tsmemseg/archive/refs/tags/${version}.tar.gz";
     hash = "sha256-sP/wf8eFiq/erCSe9ih2n+r/1zw9j0uh0qGZbVK/LdI=";
   };
 
