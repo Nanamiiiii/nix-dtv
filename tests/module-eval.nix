@@ -80,7 +80,7 @@ let
       {
         networking.firewall.allowedTCPPorts = [ 12345 ];
         services.edcb = {
-          openFirewallPorts = true;
+          openFirewall = true;
           tcpPort = 14510;
           httpPorts = [
             15510
@@ -91,7 +91,7 @@ let
             15521
           ];
         };
-        services.konomitv.openFirewallPort = true;
+        services.konomitv.openFirewall = true;
       }
     ];
   };
@@ -103,6 +103,38 @@ let
       }
     ];
   };
+  sharedFirewall = evaluated.extendModules {
+    modules = [
+      {
+        services.dtv.openFirewall = true;
+        networking.firewall.allowedTCPPorts = [ 12345 ];
+      }
+    ];
+  };
+  overriddenFirewall = sharedFirewall.extendModules {
+    modules = [
+      {
+        services.mirakurun.openFirewall = false;
+        services.edcb.openFirewall = false;
+        services.konomitv.openFirewall = false;
+      }
+    ];
+  };
+  disabledSharedFirewall = sharedFirewall.extendModules {
+    modules = [
+      {
+        services.dtv.mirakurun.enable = nixpkgs.lib.mkForce false;
+        services.dtv.edcb.enable = nixpkgs.lib.mkForce false;
+        services.dtv.konomitv.enable = nixpkgs.lib.mkForce false;
+      }
+    ];
+  };
+  withoutSmartCardAccess = evaluated.extendModules {
+    modules = [ { services.edcb.allowSmartCardAccess = false; } ];
+  };
+  edcbPolkitRules =
+    config:
+    builtins.filter (package: package.name or "" == "10-edcb.rules") config.environment.systemPackages;
   defaultDtv = nixpkgs.lib.nixosSystem {
     inherit system;
     modules = [
@@ -110,6 +142,29 @@ let
       {
         services.dtv.enable = true;
         services.dtv.edcb.enable = true;
+      }
+    ];
+  };
+  dtvWithMirakurun = defaultDtv.extendModules {
+    modules = [
+      {
+        services.dtv.mirakurun.enable = true;
+        services.edcb.tcpPort = 14510;
+        services.mirakurun.port = 14077;
+      }
+    ];
+  };
+  dtvMirakurunOnly = dtvWithMirakurun.extendModules {
+    modules = [ { services.dtv.edcb.enable = nixpkgs.lib.mkForce false; } ];
+  };
+  standaloneKonomitv = nixpkgs.lib.nixosSystem {
+    inherit system;
+    modules = [
+      self.nixosModules.nix-dtv
+      {
+        services.konomitv.enable = true;
+        services.edcb.tcpPort = 14510;
+        services.mirakurun.port = 14077;
       }
     ];
   };
@@ -272,8 +327,30 @@ let
       konomitvVolumes
   );
 in
-assert !cfg.services.edcb.openFirewallPorts;
-assert !cfg.services.konomitv.openFirewallPort;
+assert !cfg.services.dtv.openFirewall;
+assert !cfg.services.mirakurun.openFirewall;
+assert sharedFirewall.config.services.mirakurun.openFirewall;
+assert sharedFirewall.config.services.edcb.openFirewall;
+assert sharedFirewall.config.services.konomitv.openFirewall;
+assert
+  builtins.sort builtins.lessThan sharedFirewall.config.networking.firewall.allowedTCPPorts == [
+    4510
+    5510
+    5511
+    5520
+    5521
+    7100
+    12345
+    40772
+  ];
+assert overriddenFirewall.config.networking.firewall.allowedTCPPorts == [ 12345 ];
+assert disabledSharedFirewall.config.networking.firewall.allowedTCPPorts == [ 12345 ];
+assert cfg.services.edcb.allowSmartCardAccess;
+assert builtins.length (edcbPolkitRules cfg) == 1;
+assert edcbPolkitRules withoutSmartCardAccess.config == [ ];
+assert edcbPolkitRules dtvWithoutEdcb.config == [ ];
+assert !cfg.services.edcb.openFirewall;
+assert !cfg.services.konomitv.openFirewall;
 assert cfg.networking.firewall.allowedTCPPorts == [ ];
 assert
   builtins.sort builtins.lessThan firewallEnabled.config.networking.firewall.allowedTCPPorts == [
@@ -291,6 +368,16 @@ assert nixpkgs.lib.any (
 ) duplicateBinary.config.assertions;
 assert !(cfg.hardware ? dtv);
 assert defaultDtv.config.services.edcb.bondriver == [ ];
+assert defaultDtv.config.services.konomitv.backend == "EDCB";
+assert !defaultDtv.config.services.konomitv.streamFromMirakurun;
+assert dtvWithMirakurun.config.services.konomitv.backend == "EDCB";
+assert dtvWithMirakurun.config.services.konomitv.streamFromMirakurun;
+assert dtvWithMirakurun.config.services.konomitv.edcbPort == 14510;
+assert dtvWithMirakurun.config.services.konomitv.mirakurunPort == 14077;
+assert dtvMirakurunOnly.config.services.konomitv.backend == "Mirakurun";
+assert !dtvMirakurunOnly.config.services.konomitv.streamFromMirakurun;
+assert standaloneKonomitv.config.services.konomitv.edcbPort == 4510;
+assert standaloneKonomitv.config.services.konomitv.mirakurunPort == 40772;
 assert !(defaultDtv.pkgs ? nix-dtv);
 assert builtins.all (name: defaultDtv.pkgs.${name} == self.packages.${system}.${name}) (
   builtins.attrNames (builtins.removeAttrs (import ../pkgs { inherit pkgs; }) [ "edcbExtraTools" ])

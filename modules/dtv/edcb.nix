@@ -179,6 +179,18 @@ let
     "SendTSTCP.so"
     "Write_Default.so"
   ];
+
+  polkitRule = pkgs.writeTextDir "share/polkit-1/rules.d/10-edcb.rules" ''
+    polkit.addRule(function (action, subject) {
+      if (
+        (action.id == "org.debian.pcsc-lite.access_pcsc" ||
+          action.id == "org.debian.pcsc-lite.access_card") &&
+        subject.user == "edcb"
+      ) {
+        return polkit.Result.YES;
+      }
+    });
+  '';
 in
 {
   options.services.edcb = {
@@ -385,11 +397,20 @@ in
       description = "HTTPS ports for integrated civetweb.";
     };
 
-    openFirewallPorts = lib.mkOption {
+    openFirewall = lib.mkOption {
       type = lib.types.bool;
       default = false;
       example = true;
       description = "Open firewall ports for edcb.";
+    };
+
+    allowSmartCardAccess = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Install polkit rules to allow EDCB to access smart card readers
+        which is commonly used along with tuner devices.
+      '';
     };
   };
 
@@ -414,7 +435,7 @@ in
       message = "Selected BonDriver name must be a BonDriver*.so filename without path separators, whitespace or special characters.";
     }) selectedDrivers;
 
-    environment.systemPackages = [ cfg.package ];
+    environment.systemPackages = [ cfg.package ] ++ lib.optional cfg.allowSmartCardAccess polkitRule;
 
     users.groups.${cfg.recordingGroup} = { };
 
@@ -426,7 +447,7 @@ in
       extraGroups = [ cfg.recordingGroup ];
     };
 
-    networking.firewall.allowedTCPPorts = lib.optionals cfg.openFirewallPorts (
+    networking.firewall.allowedTCPPorts = lib.optionals cfg.openFirewall (
       [ cfg.tcpPort ] ++ cfg.httpPorts ++ cfg.httpsPorts
     );
 

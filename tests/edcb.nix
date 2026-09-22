@@ -38,6 +38,8 @@ pkgs.testers.runNixOSTest {
   name = "edcb-module";
   nodes.machine = {
     imports = [ self.nixosModules.nix-dtv ];
+    security.polkit.enable = true;
+    services.pcscd.enable = true;
     services.edcb = {
       enable = true;
       package = fakeEdcb;
@@ -110,6 +112,13 @@ pkgs.testers.runNixOSTest {
   };
   testScript = ''
     machine.wait_for_unit("edcb.service")
+    machine.wait_for_unit("polkit.service")
+    machine.wait_for_unit("pcscd.socket")
+    machine.succeed("test -f /run/current-system/sw/share/polkit-1/rules.d/10-edcb.rules")
+    for action in ["access_pcsc", "access_card"]:
+        machine.succeed(f"su -s /bin/sh edcb -c 'pkcheck --action-id org.debian.pcsc-lite.{action} --process $$'")
+        machine.fail(f"su -s /bin/sh nobody -c 'pkcheck --action-id org.debian.pcsc-lite.{action} --process $$'")
+
     machine.succeed("test $(stat -c %U /var/lib/edcb) = edcb")
     machine.succeed("test $(stat -c %a /mnt/tv/recordings) = 2770")
     machine.succeed("test $(stat -c %a /srv/tv/archive) = 2770")

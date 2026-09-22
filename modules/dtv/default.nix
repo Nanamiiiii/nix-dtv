@@ -30,6 +30,12 @@ in
       description = "Group allowed to write recordings.";
     };
 
+    openFirewall = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Open firewall ports to access each service externally.";
+    };
+
     px4_drv.enable = lib.mkEnableOption "px4_drv as part of the DTV stack";
     mirakurun.enable = lib.mkEnableOption "Mirakurun as part of the DTV stack";
     edcb.enable = lib.mkEnableOption "EDCB as part of the DTV stack";
@@ -43,19 +49,28 @@ in
       hardware.px4_drv.enable = lib.mkDefault cfg.px4_drv.enable;
 
       # enable mirakurun service
-      services.mirakurun.enable = lib.mkDefault cfg.mirakurun.enable;
+      services.mirakurun = {
+        enable = lib.mkDefault cfg.mirakurun.enable;
+        openFirewall = lib.mkDefault cfg.openFirewall;
+      };
 
       # enable EDCB EpgTimerSrv service
       services.edcb = {
         enable = lib.mkDefault cfg.edcb.enable;
         recordingDir = lib.mkDefault cfg.recordingDir;
         recordingGroup = lib.mkDefault cfg.recordingGroup;
+        openFirewall = lib.mkDefault cfg.openFirewall;
       };
 
       # enable konomitv service (via oci-container)
       services.konomitv = {
         enable = lib.mkDefault cfg.konomitv.enable;
         recordingDir = lib.mkDefault cfg.recordingDir;
+        edcbPort = lib.mkDefault config.services.edcb.tcpPort;
+        mirakurunPort = lib.mkDefault config.services.mirakurun.port;
+        backend = lib.mkIf (cfg.mirakurun.enable && !cfg.edcb.enable) (lib.mkDefault "Mirakurun");
+        streamFromMirakurun = lib.mkIf (cfg.mirakurun.enable && cfg.edcb.enable) (lib.mkDefault true);
+        openFirewall = lib.mkDefault cfg.openFirewall;
       };
 
       # enable PC/SC smart card daemon to read B-CAS card

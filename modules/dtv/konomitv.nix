@@ -112,7 +112,7 @@ in
 
     edcbPort = lib.mkOption {
       type = lib.types.port;
-      default = config.services.edcb.tcpPort;
+      default = 4510;
       description = "TCP port that EDCB service listens to.";
     };
 
@@ -124,7 +124,7 @@ in
 
     mirakurunPort = lib.mkOption {
       type = lib.types.port;
-      default = config.services.mirakurun.port;
+      default = 40772;
       description = "HTTP port that mirakurun service listens to.";
     };
 
@@ -146,7 +146,7 @@ in
       description = "Server port konomitv listens on.";
     };
 
-    openFirewallPort = lib.mkOption {
+    openFirewall = lib.mkOption {
       type = lib.types.bool;
       default = false;
       example = true;
@@ -167,7 +167,7 @@ in
   config = lib.mkIf cfg.enable {
     hardware.nvidia-container-toolkit.enable = lib.mkIf (cfg.encoder == "NVEncC") (lib.mkDefault true);
 
-    networking.firewall.allowedTCPPorts = lib.optional cfg.openFirewallPort cfg.serverPort;
+    networking.firewall.allowedTCPPorts = lib.optional cfg.openFirewall cfg.serverPort;
 
     virtualisation.docker.enable = true;
     virtualisation.oci-containers.backend = "docker";
