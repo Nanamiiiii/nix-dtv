@@ -369,14 +369,90 @@ let
       }
     ];
   };
+  coreIniCases = [
+    {
+      option = "settings";
+      name = "EpgTimerSrv.ini";
+    }
+    {
+      option = "commonSettings";
+      name = "Common.ini";
+    }
+    {
+      option = "epgDataCapBonSettings";
+      name = "EpgDataCap_Bon.ini";
+    }
+  ];
+  coreIniSources = builtins.listToAttrs (
+    map (file: {
+      name = file.option;
+      value = pkgs.writeText "supplied-${file.name}" "; supplied verbatim\n[SET]\nFileOnly=${file.option}\n";
+    }) coreIniCases
+  );
+  checkCoreIniFiles =
+    immutable: nullSettings:
+    let
+      config =
+        (evaluated.extendModules {
+          modules = [
+            {
+              services.edcb = builtins.listToAttrs (
+                nixpkgs.lib.concatMap (file: [
+                  {
+                    name = "${file.option}File";
+                    value = coreIniSources.${file.option};
+                  }
+                  {
+                    name = "${file.option}Immutable";
+                    value = nixpkgs.lib.mkForce immutable;
+                  }
+                  {
+                    name = file.option;
+                    value = nixpkgs.lib.mkForce (if nullSettings then null else { SET.GeneratedOnly = "ignored"; });
+                  }
+                ]) coreIniCases
+              );
+            }
+          ];
+        }).config;
+    in
+    builtins.all (
+      file:
+      let
+        source = coreIniSources.${file.option};
+        path = "/var/lib/edcb/${file.name}";
+      in
+      builtins.elem source config.systemd.services.edcb.restartTriggers
+      && (
+        if immutable then
+          builtins.elem "${source}:${path}" (iniMounts config)
+        else
+          !hasIniMount config path
+          && nixpkgs.lib.hasInfix (builtins.unsafeDiscardStringContext (toString source)) config.system.activationScripts.edcb-merge-settings.text
+          && nixpkgs.lib.hasInfix path config.system.activationScripts.edcb-merge-settings.text
+      )
+    ) coreIniCases;
+  nullCoreIniSettings =
+    (evaluated.extendModules {
+      modules = [
+        {
+          services.edcb = builtins.listToAttrs (
+            map (file: {
+              name = file.option;
+              value = nixpkgs.lib.mkForce null;
+            }) coreIniCases
+          );
+        }
+      ];
+    }).config;
+  iniMounts = config: config.systemd.services.edcb.serviceConfig.BindReadOnlyPaths or [ ];
+  hasIniMount = config: path: nixpkgs.lib.any (nixpkgs.lib.hasSuffix ":${path}") (iniMounts config);
   srvIni =
     config:
-    nixpkgs.lib.last (
-      nixpkgs.lib.splitString " " (
-        nixpkgs.lib.findFirst (nixpkgs.lib.hasPrefix "L+ /var/lib/edcb/EpgTimerSrv.ini ")
-          (throw "missing EpgTimerSrv.ini link")
-          config.systemd.tmpfiles.rules
-      )
+    nixpkgs.lib.removeSuffix ":/var/lib/edcb/EpgTimerSrv.ini" (
+      nixpkgs.lib.findFirst (nixpkgs.lib.hasSuffix ":/var/lib/edcb/EpgTimerSrv.ini")
+        (throw "missing EpgTimerSrv.ini bind mount")
+        (iniMounts config)
     );
   konomitvVolumes = cfg.virtualisation.oci-containers.containers.konomitv.volumes;
   konomitvDevices = config: config.virtualisation.oci-containers.containers.konomitv.devices;
@@ -387,6 +463,28 @@ let
       konomitvVolumes
   );
 in
+assert builtins.all (
+  file:
+  let
+    option = evaluated.options.services.edcb.${file.option + "File"};
+  in
+  cfg.services.edcb.${file.option + "File"} == null
+  && option.default == null
+  && option.type.check null
+  && option.type.check ./edcb.nix
+  && !(option.type.check 42)
+) coreIniCases;
+assert checkCoreIniFiles true false;
+assert checkCoreIniFiles true true;
+assert checkCoreIniFiles false false;
+assert checkCoreIniFiles false true;
+assert builtins.all (
+  file:
+  !hasIniMount nullCoreIniSettings "/var/lib/edcb/${file.name}"
+  && !(nixpkgs.lib.hasInfix "/var/lib/edcb/${file.name}" (
+    nullCoreIniSettings.system.activationScripts.edcb-merge-settings.text or ""
+  ))
+) coreIniCases;
 assert !cfg.services.dtv.openFirewall;
 assert !cfg.services.mirakurun.openFirewall;
 assert sharedFirewall.config.services.mirakurun.openFirewall;
@@ -478,8 +576,9 @@ assert
   == "BonDriver_Custom_2.so";
 assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/lib/BonDriver_Custom_2.so - - - - ")
   sameBinaryDifferentNames.config.systemd.tmpfiles.rules;
-assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/lib/BonDriver_Custom_2.so.ini - - - - ")
-  sameBinaryDifferentNames.config.systemd.tmpfiles.rules;
+assert hasIniMount sameBinaryDifferentNames.config "/var/lib/edcb/lib/BonDriver_Custom_2.so.ini";
+assert !hasIniMount unmanagedSettings.config "/var/lib/edcb/EpgTimerSrv.ini";
+assert !hasIniMount webUIWithUnmanagedSettings.config "/var/lib/edcb/EpgTimerSrv.ini";
 assert
   !(nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/EpgTimerSrv.ini ") unmanagedSettings.config.systemd.tmpfiles.rules);
 assert cfg.services.edcb.settingsImmutable;
@@ -530,6 +629,7 @@ assert nixpkgs.lib.all
     !(nixpkgs.lib.any (nixpkgs.lib.hasInfix (
       "/var/lib/edcb/" + name + " "
     )) mergedSettings.config.systemd.tmpfiles.rules)
+    && !hasIniMount mergedSettings.config ("/var/lib/edcb/" + name)
     && nixpkgs.lib.hasInfix name mergedSettings.config.system.activationScripts.edcb-merge-settings.text
   )
   [
@@ -537,8 +637,25 @@ assert nixpkgs.lib.all
     "Common.ini"
     "EpgDataCap_Bon.ini"
   ];
-assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/EpgTimerSrv.ini ")
-  cfg.systemd.tmpfiles.rules;
+assert builtins.all
+  (
+    path:
+    hasIniMount cfg path
+    && !(nixpkgs.lib.any (nixpkgs.lib.hasPrefix "L+ ${path} ") cfg.systemd.tmpfiles.rules)
+    && nixpkgs.lib.hasInfix "removeEdcbStoreLink ${path}" cfg.system.activationScripts.edcb-unmanage-files.text
+  )
+  [
+    "/var/lib/edcb/EpgTimerSrv.ini"
+    "/var/lib/edcb/Common.ini"
+    "/var/lib/edcb/EpgDataCap_Bon.ini"
+    "/var/lib/edcb/RecName_Macro.so.ini"
+    "/var/lib/edcb/lib/BonDriver_LinuxMirakc.so.ini"
+    "/var/lib/edcb/lib/BonDriver_Custom.so.ini"
+  ];
+assert builtins.elem "${customSettingsFile}:/var/lib/edcb/lib/BonDriver_Custom.so.ini" (
+  iniMounts cfg
+);
+assert builtins.all (mount: nixpkgs.lib.hasPrefix "/nix/store/" mount) (iniMounts cfg);
 assert cfg.hardware.px4_drv.enable;
 assert builtins.elem cfg.hardware.px4_drv.package cfg.boot.extraModulePackages;
 assert builtins.elem cfg.hardware.px4_drv.package cfg.services.udev.packages;
@@ -618,8 +735,7 @@ assert !(cfg.services.edcb.settings.SET ? EnableTCPSrv);
 assert !(cfg.services.edcb.settings ? EPG_CAP);
 assert !(cfg.services.edcb.settings ? "BonDriver_LinuxMirakc.so");
 assert cfg.services.edcb.commonSettings == { };
-assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/Common.ini ")
-  cfg.systemd.tmpfiles.rules;
+assert hasIniMount cfg "/var/lib/edcb/Common.ini";
 assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/Bitrate.ini ")
   cfg.systemd.tmpfiles.rules;
 assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/BonCtrl.ini ")
@@ -627,12 +743,11 @@ assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/BonCtrl.ini ")
 assert cfg.services.edcb.epgDataCapBonSettings.SET.TsBuffMaxCount == 5000;
 assert (builtins.head cfg.services.edcb.plugins).pluginPath == null;
 assert (builtins.head cfg.services.edcb.plugins).settings.SET.Macro == "$ZtoH(Title)$.ts";
-assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "L+ /var/lib/edcb/RecName_Macro.so.ini ")
-  cfg.systemd.tmpfiles.rules;
+assert hasIniMount cfg "/var/lib/edcb/RecName_Macro.so.ini";
 assert (builtins.elemAt cfg.services.edcb.bondriver 0).settingsFile == null;
 assert builtins.elem customSettingsFile cfg.systemd.services.edcb.restartTriggers;
-assert
-  !(nixpkgs.lib.hasInfix "removeEdcbStoreLink /var/lib/edcb/lib/BonDriver_Custom.so.ini" cfg.system.activationScripts.edcb-unmanage-files.text);
+assert nixpkgs.lib.hasInfix "removeEdcbStoreLink /var/lib/edcb/lib/BonDriver_Custom.so.ini"
+  cfg.system.activationScripts.edcb-unmanage-files.text;
 assert (builtins.elemAt cfg.services.edcb.bondriver 0).settings.GLOBAL.PRIORITY == 5;
 assert !((builtins.elemAt cfg.services.edcb.bondriver 0).settings.GLOBAL ? SERVER_HOST);
 assert !((builtins.elemAt cfg.services.edcb.bondriver 0).settings.GLOBAL ? DECODE_B25);
@@ -644,8 +759,7 @@ assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/lib/BonDriver_LinuxM
   cfg.systemd.tmpfiles.rules;
 assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/lib/BonDriver_Custom.so ")
   cfg.systemd.tmpfiles.rules;
-assert nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/lib/BonDriver_Custom.so.ini ")
-  cfg.systemd.tmpfiles.rules;
+assert hasIniMount cfg "/var/lib/edcb/lib/BonDriver_Custom.so.ini";
 assert cfg.services.konomitv.extraSettings.general.program_update_interval == 10.0;
 assert builtins.elem "/mnt/tv/recordings:/host-rootfs/mnt/tv/recordings:ro" konomitvVolumes;
 assert builtins.elem "/srv/tv/archive:/host-rootfs/srv/tv/archive:ro" konomitvVolumes;

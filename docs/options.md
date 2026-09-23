@@ -22,8 +22,10 @@
 - [`services.edcb.bondriver.*.settingsFile`](#servicesedcbbondriversettingsfile)
 - [`services.edcb.bondriver.*.tunerSettings`](#servicesedcbbondrivertunersettings)
 - [`services.edcb.commonSettings`](#servicesedcbcommonsettings)
+- [`services.edcb.commonSettingsFile`](#servicesedcbcommonsettingsfile)
 - [`services.edcb.commonSettingsImmutable`](#servicesedcbcommonsettingsimmutable)
 - [`services.edcb.epgDataCapBonSettings`](#servicesedcbepgdatacapbonsettings)
+- [`services.edcb.epgDataCapBonSettingsFile`](#servicesedcbepgdatacapbonsettingsfile)
 - [`services.edcb.epgDataCapBonSettingsImmutable`](#servicesedcbepgdatacapbonsettingsimmutable)
 - [`services.edcb.httpPorts`](#servicesedcbhttpports)
 - [`services.edcb.httpsPorts`](#servicesedcbhttpsports)
@@ -40,6 +42,7 @@
 - [`services.edcb.recordingDir`](#servicesedcbrecordingdir)
 - [`services.edcb.recordingGroup`](#servicesedcbrecordinggroup)
 - [`services.edcb.settings`](#servicesedcbsettings)
+- [`services.edcb.settingsFile`](#servicesedcbsettingsfile)
 - [`services.edcb.settingsImmutable`](#servicesedcbsettingsimmutable)
 - [`services.edcb.tcpPort`](#servicesedcbtcpport)
 - [`services.konomitv.enable`](#serviceskonomitvenable)
@@ -484,7 +487,7 @@ string
 
 
 
-Filename used for the BonDriver library symlink\. The adjacent INI symlink uses \<name>\.ini\. Defaults to the basename of driverPath\.
+Filename used for the BonDriver library symlink\. The adjacent read-only INI bind mount uses \<name>\.ini inside the EDCB service\. Defaults to the basename of driverPath\.
 
 
 
@@ -508,7 +511,7 @@ builtins.baseNameOf driverPath
 
 
 
-INI settings written beside the selected driver as \<name>\.ini\. Used when settingsFile is null; null leaves the INI unmanaged if settingsFile is also null\. No driver-specific values are added\.
+INI settings bind mounted read-only beside the selected driver as \<name>\.ini inside the EDCB service\. Used when settingsFile is null; null leaves the INI unmanaged if settingsFile is also null\. No driver-specific values are added\.
 
 
 
@@ -532,7 +535,7 @@ null
 
 
 
-Existing INI file to link beside the selected driver as \<name>\.ini\. Takes precedence over settings\.
+Existing INI file to bind mount read-only beside the selected driver as \<name>\.ini inside the EDCB service\. Takes precedence over settings\.
 
 
 
@@ -580,7 +583,7 @@ attribute set of (string or signed integer or boolean)
 
 
 
-Managed Common\.ini settings\. Null leaves the file unmanaged; a non-null value also receives the recording directory defaults\.
+Managed Common\.ini settings, used when commonSettingsFile is null\. Null leaves the file unmanaged only if commonSettingsFile is also null; a non-null value also receives the recording directory defaults\.
 
 
 
@@ -600,11 +603,35 @@ null or (attribute set of section of an INI file (attrs of INI atom (null, bool,
 
 
 
+## services\.edcb\.commonSettingsFile
+
+
+
+Existing Common\.ini to use instead of commonSettings, including automatic recording directory settings\. With commonSettingsImmutable, bind mount the file verbatim read-only inside the EDCB service; otherwise merge its values into the writable INI during activation, with source values taking precedence\. Mutable merging does not preserve comments or formatting\. The file is normally stored in the publicly readable Nix store and must not contain secrets\.
+
+
+
+*Type:*
+null or absolute path
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+*Declared by:*
+ - [modules/dtv/edcb\.nix](../modules/dtv/edcb.nix)
+
+
+
 ## services\.edcb\.commonSettingsImmutable
 
 
 
-Link the generated INI from the Nix store\. When false, merge Nix settings into the existing writable INI during system activation, with Nix values taking precedence\. Has no effect when commonSettings is null\.
+Read-only bind mount the supplied or generated INI inside the EDCB service\. When false, merge the source settings into the existing writable INI during system activation, with source values taking precedence\. Has no effect when commonSettings and commonSettingsFile are both null\.
 
 
 
@@ -628,7 +655,7 @@ false
 
 
 
-Managed EpgDataCap_Bon\.ini settings\. Null leaves the file unmanaged\.
+Managed EpgDataCap_Bon\.ini settings, used when epgDataCapBonSettingsFile is null\. Null leaves the file unmanaged only if epgDataCapBonSettingsFile is also null\.
 
 
 
@@ -663,11 +690,35 @@ null or (attribute set of section of an INI file (attrs of INI atom (null, bool,
 
 
 
+## services\.edcb\.epgDataCapBonSettingsFile
+
+
+
+Existing EpgDataCap_Bon\.ini to use instead of epgDataCapBonSettings\. With epgDataCapBonSettingsImmutable, bind mount the file verbatim read-only inside the EDCB service; otherwise merge its values into the writable INI during activation, with source values taking precedence\. Mutable merging does not preserve comments or formatting\. The file is normally stored in the publicly readable Nix store and must not contain secrets\.
+
+
+
+*Type:*
+null or absolute path
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+*Declared by:*
+ - [modules/dtv/edcb\.nix](../modules/dtv/edcb.nix)
+
+
+
 ## services\.edcb\.epgDataCapBonSettingsImmutable
 
 
 
-Link the generated INI from the Nix store\. When false, merge Nix settings into the existing writable INI during system activation, with Nix values taking precedence\. Has no effect when epgDataCapBonSettings is null\.
+Read-only bind mount the supplied or generated INI inside the EDCB service\. When false, merge the source settings into the existing writable INI during system activation, with source values taking precedence\. Has no effect when epgDataCapBonSettings and epgDataCapBonSettingsFile are both null\.
 
 
 
@@ -932,7 +983,7 @@ list of (submodule)
 
 
 
-Filename used for the plugin symlink in /var/lib/edcb/lib\. The INI symlink uses /var/lib/edcb/\<name>\.ini\. Defaults to the basename of pluginPath; must be specified when pluginPath is null\.
+Filename used for the plugin symlink in /var/lib/edcb/lib\. The read-only INI bind mount uses /var/lib/edcb/\<name>\.ini inside the EDCB service\. Defaults to the basename of pluginPath; must be specified when pluginPath is null\.
 
 
 
@@ -980,7 +1031,7 @@ null
 
 
 
-INI settings linked as /var/lib/edcb/\<name>\.ini\. Used when settingsFile is null; null leaves the INI unmanaged if settingsFile is also null\.
+INI settings bind mounted read-only as /var/lib/edcb/\<name>\.ini inside the EDCB service\. Used when settingsFile is null; null leaves the INI unmanaged if settingsFile is also null\.
 
 
 
@@ -1004,7 +1055,7 @@ null
 
 
 
-Existing INI file to link as /var/lib/edcb/\<name>\.ini\. Takes precedence over settings\.
+Existing INI file to bind mount read-only as /var/lib/edcb/\<name>\.ini inside the EDCB service\. Takes precedence over settings\.
 
 
 
@@ -1078,7 +1129,7 @@ string
 
 
 
-Managed EpgTimerSrv\.ini settings\. Null leaves the file unmanaged\. The option default provides integration settings; an explicit value replaces it\. A non-null value receives TVTEST entries and each BonDriver’s tunerSettings\. TCPPort and HttpPort are always derived from the dedicated port options\.
+Managed EpgTimerSrv\.ini settings, used when settingsFile is null\. Null leaves the file unmanaged only if settingsFile is also null\. The option default provides integration settings; an explicit value replaces it\. A non-null value receives TVTEST entries and each BonDriver’s tunerSettings\. For generated settings, TCPPort and HttpPort are always derived from the dedicated port options\.
 
 
 
@@ -1122,11 +1173,35 @@ null or (attribute set of section of an INI file (attrs of INI atom (null, bool,
 
 
 
+## services\.edcb\.settingsFile
+
+
+
+Existing EpgTimerSrv\.ini to use instead of settings, including automatic tuner and port settings\. With settingsImmutable, bind mount the file verbatim read-only inside the EDCB service; otherwise merge its values into the writable INI during activation, with source values taking precedence\. Mutable merging does not preserve comments or formatting\. The file is normally stored in the publicly readable Nix store and must not contain secrets\.
+
+
+
+*Type:*
+null or absolute path
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+*Declared by:*
+ - [modules/dtv/edcb\.nix](../modules/dtv/edcb.nix)
+
+
+
 ## services\.edcb\.settingsImmutable
 
 
 
-Link the generated INI from the Nix store\. When false, merge Nix settings into the existing writable INI during system activation, with Nix values taking precedence\. Has no effect when settings is null\.
+Read-only bind mount the supplied or generated INI inside the EDCB service\. When false, merge the source settings into the existing writable INI during system activation, with source values taking precedence\. Has no effect when settings and settingsFile are both null\.
 
 
 

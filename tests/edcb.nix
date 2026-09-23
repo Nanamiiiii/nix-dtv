@@ -32,6 +32,41 @@ let
     [GLOBAL]
     PRIORITY=17
   '';
+  coreSources = {
+    "EpgTimerSrv.ini" =
+      pkgs.writeText "supplied-EpgTimerSrv.ini" "; Keep comments and spacing\r\n[SET]\r\nTCPPort = 14510\r\nFileOnly = timer\r\n";
+    "Common.ini" =
+      pkgs.writeText "supplied-Common.ini" "; Keep comments and spacing\n[SET]\nRecFolderPath0 = /supplied/recordings\nFileOnly = common\n";
+    "EpgDataCap_Bon.ini" =
+      pkgs.writeText "supplied-EpgDataCap_Bon.ini" "; Keep comments and spacing\n[SET]\nTsBuffMaxCount = 7654\nFileOnly = capture\n";
+  };
+  fileNode = immutable: {
+    imports = [ self.nixosModules.nix-dtv ];
+    services.edcb = {
+      enable = true;
+      package = fakeEdcb;
+      settingsFile = coreSources."EpgTimerSrv.ini";
+      commonSettingsFile = coreSources."Common.ini";
+      epgDataCapBonSettingsFile = coreSources."EpgDataCap_Bon.ini";
+      settingsImmutable = immutable;
+      commonSettingsImmutable = immutable;
+      epgDataCapBonSettingsImmutable = immutable;
+      settings.SET = {
+        TCPPort = 9999;
+        GeneratedOnly = "ignored";
+      };
+      commonSettings = if immutable then null else { SET.GeneratedOnly = "ignored"; };
+      epgDataCapBonSettings = if immutable then { SET.TsBuffMaxCount = 9999; } else null;
+      tcpPort = 4512;
+      recordingDir = [ "/mnt/tv/recordings" ];
+      bondriver = [
+        {
+          driverPath = "${fakeBonDriver}/lib/BonDriver_LinuxMirakc.so";
+          tunerSettings.Count = 4;
+        }
+      ];
+    };
+  };
   fakePlugin = pkgs.runCommand "fake-edcb-plugin" { } ''
     mkdir -p "$out/lib"
     touch "$out/lib/Write_Custom.so"
@@ -141,7 +176,107 @@ pkgs.testers.runNixOSTest {
       };
     };
   };
+  nodes.immutable = {
+    imports = [ self.nixosModules.nix-dtv ];
+    services.edcb = {
+      enable = true;
+      package = fakeEdcb;
+      settingsImmutable = true;
+      commonSettingsImmutable = true;
+      epgDataCapBonSettingsImmutable = true;
+      epgDataCapBonSettings.SET.TsBuffMaxCount = 5000;
+    };
+  };
+  nodes.fileImmutable = fileNode true;
+  nodes.fileMutable = fileNode false;
   testScript = ''
+    import shlex
+    import configparser
+    import json
+
+    class EdcbIni(configparser.ConfigParser):
+        def optionxform(self, optionstr: str) -> str:
+            return optionstr
+
+    core_sources = json.loads('${builtins.toJSON coreSources}')
+    fileImmutable.wait_for_unit("edcb.service")
+    file_pid = fileImmutable.succeed("systemctl show edcb.service -p MainPID --value").strip()
+    for name, source in core_sources.items():
+        path = "/var/lib/edcb/" + name
+        prefix = f"${pkgs.util-linux}/bin/nsenter -t {file_pid} -m -- su -s /bin/sh edcb -c "
+        fileImmutable.succeed(prefix + shlex.quote(f"cmp {source} {path}"))
+        fileImmutable.fail(prefix + shlex.quote(f"echo changed > {path}"))
+
+    fileMutable.wait_for_unit("edcb.service")
+    expected = {
+        "EpgTimerSrv.ini": {"TCPPort": "14510", "FileOnly": "timer"},
+        "Common.ini": {"RecFolderPath0": "/supplied/recordings", "FileOnly": "common"},
+        "EpgDataCap_Bon.ini": {"TsBuffMaxCount": "7654", "FileOnly": "capture"},
+    }
+
+    def read_file_ini(name):
+        parser = EdcbIni(interpolation=None)
+        parser.read_string(fileMutable.succeed(f"cat /var/lib/edcb/{name}"))
+        return parser
+
+    for name, values in expected.items():
+        parser = read_file_ini(name)
+        assert parser.sections() == ["SET"], (name, parser.sections())
+        assert dict(parser["SET"]) == values, (name, dict(parser["SET"]))
+        path = "/var/lib/edcb/" + name
+        content = "[SET]\nFileOnly=runtime-conflict\nRuntimeKey=keep%value\n[RuntimeOnly]\nMixedCase=retained\n"
+        fileMutable.succeed("su -s /bin/sh edcb -c " + shlex.quote(f"printf %s {shlex.quote(content)} > {path}"))
+    before = fileMutable.succeed("sha256sum /var/lib/edcb/*.ini")
+    fileMutable.succeed("systemctl restart edcb")
+    assert fileMutable.succeed("sha256sum /var/lib/edcb/*.ini") == before
+    fileMutable.succeed("systemctl stop edcb")
+    for _ in range(2):
+        fileMutable.succeed("/run/current-system/activate")
+        for name, values in expected.items():
+            parser = read_file_ini(name)
+            assert parser.sections() == ["SET", "RuntimeOnly"]
+            assert dict(parser["SET"]) == dict(values, RuntimeKey="keep%value")
+            assert dict(parser["RuntimeOnly"]) == {"MixedCase": "retained"}
+            fileMutable.succeed(f"test ! -L /var/lib/edcb/{name} && test $(stat -c %a /var/lib/edcb/{name}) = 640 && test $(stat -c %U /var/lib/edcb/{name}) = edcb")
+    fileMutable.succeed("systemctl start edcb")
+
+    def service_command(command):
+        pid = machine.succeed("systemctl show edcb.service -p MainPID --value").strip()
+        return f"${pkgs.util-linux}/bin/nsenter -t {pid} -m -- su -s /bin/sh edcb -c {shlex.quote(command)}"
+
+    def service_succeed(command):
+        return machine.succeed(service_command(command))
+
+    def service_fail(command):
+        return machine.fail(service_command(command))
+
+    immutable.wait_for_unit("edcb.service")
+    immutable.succeed("systemctl stop edcb")
+    core_files = ["EpgTimerSrv.ini", "Common.ini", "EpgDataCap_Bon.ini"]
+    for index, name in enumerate(core_files):
+        source = "${customSettingsFile}" if index % 2 == 0 else "/nix/store/missing-ini"
+        immutable.succeed(f"ln -sf {source} /var/lib/edcb/{name}")
+    immutable.succeed("/run/current-system/activate")
+    for name in core_files:
+        immutable.succeed(f"test ! -L /var/lib/edcb/{name}")
+    immutable.succeed("systemctl start edcb")
+    immutable_pid = immutable.succeed("systemctl show edcb.service -p MainPID --value").strip()
+
+    def immutable_command(command):
+        return f"${pkgs.util-linux}/bin/nsenter -t {immutable_pid} -m -- su -s /bin/sh edcb -c {shlex.quote(command)}"
+
+    for name in core_files:
+        path = "/var/lib/edcb/" + name
+        immutable.succeed(immutable_command(f"test -s {path} && test ! -L {path}"))
+        before = immutable.succeed(immutable_command(f"sha256sum {path}"))
+        for command in [f"echo changed > {path}", f"rm -f {path}", f"mv -f {path} {path}.moved"]:
+            immutable.fail(immutable_command(command))
+        immutable.succeed(immutable_command(f"echo replacement > {path}.replacement"))
+        immutable.fail(immutable_command(f"mv -f {path}.replacement {path}"))
+        immutable.succeed(immutable_command(f"rm {path}.replacement"))
+        assert immutable.succeed(immutable_command(f"sha256sum {path}")) == before
+    immutable.succeed(immutable_command("echo runtime > /var/lib/edcb/Reserve.txt"))
+
     machine.wait_for_unit("edcb.service")
     machine.wait_for_unit("polkit.service")
     machine.wait_for_unit("pcscd.socket")
@@ -171,19 +306,17 @@ pkgs.testers.runNixOSTest {
     for name in ["Write_Custom.so", "Write_File.so", "Write_Unmanaged.so"]:
         machine.succeed(f"test $(readlink /var/lib/edcb/lib/{name}) = ${fakePlugin}/lib/Write_Custom.so")
         machine.fail(f"test -e /var/lib/edcb/lib/{name}.ini")
-    machine.succeed("test -L /var/lib/edcb/Write_Custom.so.ini")
-    machine.succeed("grep -Fx 'Value=42' /var/lib/edcb/Write_Custom.so.ini")
-    machine.succeed("test $(readlink /var/lib/edcb/Write_File.so.ini) = ${customSettingsFile}")
-    machine.succeed("cmp /var/lib/edcb/Write_File.so.ini ${customSettingsFile}")
-    machine.fail("test -e /var/lib/edcb/Write_Unmanaged.so.ini")
-    machine.succeed("grep -Fx 'Value=73' /var/lib/edcb/Write_SettingsOnly.so.ini")
-    machine.succeed("test $(readlink /var/lib/edcb/Write_FileOnly.so.ini) = ${customSettingsFile}")
+    service_succeed("grep -Fx 'Value=42' /var/lib/edcb/Write_Custom.so.ini")
+    service_succeed("cmp /var/lib/edcb/Write_File.so.ini ${customSettingsFile}")
+    service_fail("test -e /var/lib/edcb/Write_Unmanaged.so.ini")
+    service_succeed("grep -Fx 'Value=73' /var/lib/edcb/Write_SettingsOnly.so.ini")
+    service_succeed("cmp /var/lib/edcb/Write_FileOnly.so.ini ${customSettingsFile}")
     for name in ["Write_SettingsOnly.so", "Write_FileOnly.so"]:
         machine.fail(f"test -L /var/lib/edcb/lib/{name}")
         machine.fail(f"test -e /var/lib/edcb/lib/{name}")
     machine.succeed("test -L /var/lib/edcb/lib/BonDriver_Custom.so")
     machine.succeed("test -L /var/lib/edcb/lib/BonDriver_Custom_2.so")
-    machine.succeed("test -L /var/lib/edcb/lib/BonDriver_Custom_2.so.ini")
+    service_succeed("test -f /var/lib/edcb/lib/BonDriver_Custom_2.so.ini")
     machine.fail("test -e /var/lib/edcb/lib/BonDriver_Unselected.so")
     machine.fail("test -e /var/lib/edcb/lib/BonDriver_Unselected.so.ini")
     machine.succeed("test $(readlink -f /var/lib/edcb/lib/BonDriver_LinuxMirakc.so) = ${fakeBonDriver}/lib/BonDriver_LinuxMirakc.so")
@@ -197,12 +330,6 @@ pkgs.testers.runNixOSTest {
     machine.succeed("grep -F 'TCPAccessControlList=+127.0.0.0/8,+10.0.0.0/8,+172.16.0.0/12,+192.168.0.0/16,+169.254.0.0/16,+100.64.0.0/10' /var/lib/edcb/EpgTimerSrv.ini")
     machine.succeed("grep -F 'CompatFlags=128' /var/lib/edcb/EpgTimerSrv.ini")
     machine.succeed("grep -F 'TimeSync=0' /var/lib/edcb/EpgTimerSrv.ini")
-    import configparser
-
-    class EdcbIni(configparser.ConfigParser):
-        def optionxform(self, optionstr: str) -> str:
-            return optionstr
-
     ini = EdcbIni()
     ini.read_string(machine.succeed("cat /var/lib/edcb/EpgTimerSrv.ini"))
     assert dict(ini["TVTEST"]) == {"Num": "4", "0": "BonDriver_LinuxMirakc.so", "1": "BonDriver_Custom.so", "2": "BonDriver_Custom_2.so", "3": "BonDriver_FileOnly.so"}
@@ -214,20 +341,39 @@ pkgs.testers.runNixOSTest {
     machine.succeed("grep -F 'EnableHttpSrv=1' /var/lib/edcb/EpgTimerSrv.ini")
     machine.succeed("grep -Fx 'HttpPort=5510,5520,5511s,5521s' /var/lib/edcb/EpgTimerSrv.ini")
     machine.fail("grep -F '[EPG_CAP]' /var/lib/edcb/EpgTimerSrv.ini")
-    machine.fail("grep -F 'SERVER_HOST=' /var/lib/edcb/lib/BonDriver_LinuxMirakc.so.ini")
-    machine.fail("grep -F 'SERVER_PORT=' /var/lib/edcb/lib/BonDriver_LinuxMirakc.so.ini")
-    machine.fail("grep -F 'SERVER_TYPE=' /var/lib/edcb/lib/BonDriver_LinuxMirakc.so.ini")
-    machine.succeed("grep -F 'PRIORITY=5' /var/lib/edcb/lib/BonDriver_LinuxMirakc.so.ini")
-    machine.succeed("test $(readlink /var/lib/edcb/lib/BonDriver_Custom.so.ini) = ${customSettingsFile}")
-    machine.succeed("cmp /var/lib/edcb/lib/BonDriver_Custom.so.ini ${customSettingsFile}")
-    machine.succeed("grep -F 'PRIORITY=8' /var/lib/edcb/lib/BonDriver_Custom_2.so.ini")
-    machine.succeed("test $(readlink /var/lib/edcb/lib/BonDriver_FileOnly.so.ini) = ${customSettingsFile}")
-    machine.succeed("cmp /var/lib/edcb/lib/BonDriver_FileOnly.so.ini ${customSettingsFile}")
-    machine.fail("grep -F 'SERVER_HOST=' /var/lib/edcb/lib/BonDriver_Custom.so.ini")
+    service_fail("grep -F 'SERVER_HOST=' /var/lib/edcb/lib/BonDriver_LinuxMirakc.so.ini")
+    service_fail("grep -F 'SERVER_PORT=' /var/lib/edcb/lib/BonDriver_LinuxMirakc.so.ini")
+    service_fail("grep -F 'SERVER_TYPE=' /var/lib/edcb/lib/BonDriver_LinuxMirakc.so.ini")
+    service_succeed("grep -F 'PRIORITY=5' /var/lib/edcb/lib/BonDriver_LinuxMirakc.so.ini")
+    service_succeed("cmp /var/lib/edcb/lib/BonDriver_Custom.so.ini ${customSettingsFile}")
+    service_succeed("grep -F 'PRIORITY=8' /var/lib/edcb/lib/BonDriver_Custom_2.so.ini")
+    service_succeed("cmp /var/lib/edcb/lib/BonDriver_FileOnly.so.ini ${customSettingsFile}")
+    service_fail("grep -F 'SERVER_HOST=' /var/lib/edcb/lib/BonDriver_Custom.so.ini")
     machine.succeed("grep -F 'TsBuffMaxCount=5000' /var/lib/edcb/EpgDataCap_Bon.ini")
     machine.succeed("grep -F 'WriteBuffMaxCount=-1' /var/lib/edcb/EpgDataCap_Bon.ini")
-    machine.succeed("grep -F 'Macro=$ZtoH(Title)$.ts' /var/lib/edcb/RecName_Macro.so.ini")
-    machine.succeed("test -L /var/lib/edcb/RecName_Macro.so.ini")
+    service_succeed("grep -F 'Macro=$ZtoH(Title)$.ts' /var/lib/edcb/RecName_Macro.so.ini")
+    immutable_files = [
+        "RecName_Macro.so.ini", "Write_Custom.so.ini", "Write_File.so.ini",
+        "Write_SettingsOnly.so.ini", "Write_FileOnly.so.ini",
+        "lib/BonDriver_LinuxMirakc.so.ini", "lib/BonDriver_Custom.so.ini",
+        "lib/BonDriver_Custom_2.so.ini", "lib/BonDriver_FileOnly.so.ini",
+    ]
+    for name in immutable_files:
+        path = "/var/lib/edcb/" + name
+        service_succeed(f"test -f {path} && test ! -L {path}")
+        before = service_succeed(f"sha256sum {path}")
+        service_fail(f"echo changed > {path}")
+        service_fail(f"rm -f {path}")
+        service_fail(f"mv -f {path} {path}.moved")
+        service_succeed(f"echo replacement > {path}.replacement")
+        service_fail(f"mv -f {path}.replacement {path}")
+        service_succeed(f"rm {path}.replacement")
+        assert service_succeed(f"sha256sum {path}") == before
+    # The surrounding state and recording directories must remain writable.
+    for path in ["/var/lib/edcb/Reserve.txt", "/var/lib/edcb/Setting/runtime.ini", "/mnt/tv/recordings/runtime.ts"]:
+        service_succeed(f"echo runtime > {path} && mv {path} {path}.moved && rm {path}.moved")
+    for name in ["EpgTimerSrv.ini", "Common.ini", "EpgDataCap_Bon.ini", "Setting/HttpPublic.ini"]:
+        service_succeed(f"echo '; runtime update' >> /var/lib/edcb/{name}")
     import base64
 
     files = {
@@ -257,13 +403,30 @@ pkgs.testers.runNixOSTest {
         machine.succeed(f"ln -s /nix/store/missing-driver /var/lib/edcb/lib/BonDriver_Dangling{suffix}")
         machine.succeed(f"echo manual > /var/lib/edcb/lib/BonDriver_Manual{suffix}")
         machine.succeed(f"ln -s /opt/missing-driver /var/lib/edcb/lib/BonDriver_External{suffix}")
+    # Simulate the previous immutable layout, including a dangling store link.
+    for index, name in enumerate(immutable_files):
+        source = "${customSettingsFile}" if index % 2 == 0 else "/nix/store/missing-ini"
+        machine.succeed(f"ln -sf {source} /var/lib/edcb/{name}")
+    machine.succeed("ln -s ${customSettingsFile} /var/lib/edcb/Write_Unmanaged.so.ini")
     machine.succeed("/run/current-system/activate")
+    for name in immutable_files + ["Write_Unmanaged.so.ini"]:
+        machine.succeed(f"test ! -L /var/lib/edcb/{name}")
+    machine.succeed("systemctl start edcb")
+    for name in immutable_files:
+        service_succeed(f"test -f /var/lib/edcb/{name} && test ! -L /var/lib/edcb/{name}")
+    service_succeed("grep -Fx 'Value=42' /var/lib/edcb/Write_Custom.so.ini")
+    service_succeed("cmp /var/lib/edcb/lib/BonDriver_Custom.so.ini ${customSettingsFile}")
+    service_fail("test -e /var/lib/edcb/Write_Unmanaged.so.ini")
+    machine.succeed("systemctl stop edcb")
     for suffix in [".so", ".so.ini"]:
         for name in ["Removed", "Dangling"]:
             machine.succeed(f"test ! -L /var/lib/edcb/lib/BonDriver_{name}{suffix}")
         machine.succeed(f"grep -Fx manual /var/lib/edcb/lib/BonDriver_Manual{suffix}")
         machine.succeed(f"test $(readlink /var/lib/edcb/lib/BonDriver_External{suffix}) = /opt/missing-driver")
-        machine.succeed(f"test -L /var/lib/edcb/lib/BonDriver_Custom{suffix}")
+        if suffix == ".so":
+            machine.succeed(f"test -L /var/lib/edcb/lib/BonDriver_Custom{suffix}")
+        else:
+            machine.succeed(f"test ! -L /var/lib/edcb/lib/BonDriver_Custom{suffix}")
     machine.succeed("test -L /var/lib/edcb/lib/RecName_Macro.so")
     machine.succeed("grep -Fx custom /var/lib/edcb/Setting/HttpPublic.ini")
     for _ in range(2):
@@ -287,6 +450,14 @@ pkgs.testers.runNixOSTest {
     machine.succeed("grep -Fx RecFolderNum=2 /var/lib/edcb/Common.ini")
     machine.succeed("grep -Fx RecFolderPath0=/mnt/tv/recordings /var/lib/edcb/Common.ini")
     machine.succeed("grep -Fx RecFolderPath1=/srv/tv/archive /var/lib/edcb/Common.ini")
+    # Unmanaged plugin INIs retain regular files and non-store symlinks.
+    machine.succeed("systemctl stop edcb")
+    machine.succeed("echo manual > /var/lib/edcb/Write_Unmanaged.so.ini")
+    machine.succeed("/run/current-system/activate")
+    machine.succeed("grep -Fx manual /var/lib/edcb/Write_Unmanaged.so.ini")
+    machine.succeed("rm /var/lib/edcb/Write_Unmanaged.so.ini; ln -s /opt/manual.ini /var/lib/edcb/Write_Unmanaged.so.ini")
+    machine.succeed("/run/current-system/activate")
+    machine.succeed("test $(readlink /var/lib/edcb/Write_Unmanaged.so.ini) = /opt/manual.ini")
 
   '';
 }

@@ -87,6 +87,22 @@ HTTPの待受ポートは `httpPorts`，HTTPSの待受ポートは `httpsPorts` 
 }
 ```
 
+### 既存ファイルの利用
+既存ファイルをNix経由で配置するオプションも存在します．Immutableオプションと組み合わせることで，既存ファイルをそのままの内容でread-only bind mountします．ただし，他オプションからの自動的な設定値の連動は機能しなくなります．また，これらのオプションが `null` でない場合はNixでの設定値が `null` だとしても，Nixの管理下に入ります．
+
+```nix
+services.edcb = {
+  settingsFile = ./EpgTimerSrv.ini;
+  settingsImmutable = true;
+
+  commonSettingsFile = ./Common.ini;
+  commonSettingsImmutable = true;
+
+  epgDataCapBonSettingsFile = ./EpgDataCap_Bon.ini;
+  epgDataCapBonSettingsImmutable = true;
+};
+```
+
 ## Plugin
 `RecName_Macro.so` や `Write_Default.so` のようなプラグインの配置，設定iniの宣言的定義を行う．  
 上記2プラグインはデフォルトで配置されているものだが，iniのみの定義も可能．

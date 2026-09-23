@@ -104,18 +104,21 @@ let
       path = "/var/lib/edcb/EpgTimerSrv.ini";
       immutable = cfg.settingsImmutable;
       settings = epgTimerSrvSettings;
+      settingsFile = cfg.settingsFile;
     }
     {
       name = "Common.ini";
       path = "/var/lib/edcb/Common.ini";
       immutable = cfg.commonSettingsImmutable;
       settings = commonSettings;
+      settingsFile = cfg.commonSettingsFile;
     }
     {
       name = "EpgDataCap_Bon.ini";
       path = "/var/lib/edcb/EpgDataCap_Bon.ini";
       immutable = cfg.epgDataCapBonSettingsImmutable;
       settings = cfg.epgDataCapBonSettings;
+      settingsFile = cfg.epgDataCapBonSettingsFile;
     }
   ]
   ++ bonDriverIniFiles
@@ -137,7 +140,7 @@ let
 
   configuredIniFiles = lib.filter (file: file.source != null) resolvedIniFiles;
 
-  linkedIniFiles = lib.filter (file: file.immutable or true) configuredIniFiles;
+  immutableIniFiles = lib.filter (file: file.immutable or true) configuredIniFiles;
 
   mergedIniFiles = lib.filter (file: !(file.immutable or true)) configuredIniFiles;
 
@@ -229,10 +232,16 @@ in
       description = "Create the recording directories and enforce root ownership, the recording group, and mode 2770. Disable this for externally managed directories such as NFS shares.";
     };
 
+    settingsFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
+      default = null;
+      description = "Existing EpgTimerSrv.ini to use instead of settings, including automatic tuner and port settings. With settingsImmutable, bind mount the file verbatim read-only inside the EDCB service; otherwise merge its values into the writable INI during activation, with source values taking precedence. Mutable merging does not preserve comments or formatting. The file is normally stored in the publicly readable Nix store and must not contain secrets.";
+    };
+
     settingsImmutable = lib.mkOption {
       type = lib.types.bool;
       default = false;
-      description = "Link the generated INI from the Nix store. When false, merge Nix settings into the existing writable INI during system activation, with Nix values taking precedence. Has no effect when settings is null.";
+      description = "Read-only bind mount the supplied or generated INI inside the EDCB service. When false, merge the source settings into the existing writable INI during system activation, with source values taking precedence. Has no effect when settings and settingsFile are both null.";
     };
 
     settings = lib.mkOption {
@@ -255,25 +264,37 @@ in
           "0BasicOnlyFlags" = 14;
         };
       };
-      description = "Managed EpgTimerSrv.ini settings. Null leaves the file unmanaged. The option default provides integration settings; an explicit value replaces it. A non-null value receives TVTEST entries and each BonDriver's tunerSettings. TCPPort and HttpPort are always derived from the dedicated port options.";
+      description = "Managed EpgTimerSrv.ini settings, used when settingsFile is null. Null leaves the file unmanaged only if settingsFile is also null. The option default provides integration settings; an explicit value replaces it. A non-null value receives TVTEST entries and each BonDriver's tunerSettings. For generated settings, TCPPort and HttpPort are always derived from the dedicated port options.";
+    };
+
+    commonSettingsFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
+      default = null;
+      description = "Existing Common.ini to use instead of commonSettings, including automatic recording directory settings. With commonSettingsImmutable, bind mount the file verbatim read-only inside the EDCB service; otherwise merge its values into the writable INI during activation, with source values taking precedence. Mutable merging does not preserve comments or formatting. The file is normally stored in the publicly readable Nix store and must not contain secrets.";
     };
 
     commonSettingsImmutable = lib.mkOption {
       type = lib.types.bool;
       default = false;
-      description = "Link the generated INI from the Nix store. When false, merge Nix settings into the existing writable INI during system activation, with Nix values taking precedence. Has no effect when commonSettings is null.";
+      description = "Read-only bind mount the supplied or generated INI inside the EDCB service. When false, merge the source settings into the existing writable INI during system activation, with source values taking precedence. Has no effect when commonSettings and commonSettingsFile are both null.";
     };
 
     commonSettings = lib.mkOption {
       type = lib.types.nullOr ini.type;
       default = { };
-      description = "Managed Common.ini settings. Null leaves the file unmanaged; a non-null value also receives the recording directory defaults.";
+      description = "Managed Common.ini settings, used when commonSettingsFile is null. Null leaves the file unmanaged only if commonSettingsFile is also null; a non-null value also receives the recording directory defaults.";
+    };
+
+    epgDataCapBonSettingsFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
+      default = null;
+      description = "Existing EpgDataCap_Bon.ini to use instead of epgDataCapBonSettings. With epgDataCapBonSettingsImmutable, bind mount the file verbatim read-only inside the EDCB service; otherwise merge its values into the writable INI during activation, with source values taking precedence. Mutable merging does not preserve comments or formatting. The file is normally stored in the publicly readable Nix store and must not contain secrets.";
     };
 
     epgDataCapBonSettingsImmutable = lib.mkOption {
       type = lib.types.bool;
       default = false;
-      description = "Link the generated INI from the Nix store. When false, merge Nix settings into the existing writable INI during system activation, with Nix values taking precedence. Has no effect when epgDataCapBonSettings is null.";
+      description = "Read-only bind mount the supplied or generated INI inside the EDCB service. When false, merge the source settings into the existing writable INI during system activation, with source values taking precedence. Has no effect when epgDataCapBonSettings and epgDataCapBonSettingsFile are both null.";
     };
 
     epgDataCapBonSettings = lib.mkOption {
@@ -287,7 +308,7 @@ in
           WriteBuffMaxCount = -1;
         };
       };
-      description = "Managed EpgDataCap_Bon.ini settings. Null leaves the file unmanaged.";
+      description = "Managed EpgDataCap_Bon.ini settings, used when epgDataCapBonSettingsFile is null. Null leaves the file unmanaged only if epgDataCapBonSettingsFile is also null.";
     };
 
     plugins = lib.mkOption {
@@ -306,7 +327,7 @@ in
                 {
                   type = lib.types.str;
                   defaultText = lib.literalExpression "builtins.baseNameOf pluginPath";
-                  description = "Filename used for the plugin symlink in /var/lib/edcb/lib. The INI symlink uses /var/lib/edcb/<name>.ini. Defaults to the basename of pluginPath; must be specified when pluginPath is null.";
+                  description = "Filename used for the plugin symlink in /var/lib/edcb/lib. The read-only INI bind mount uses /var/lib/edcb/<name>.ini inside the EDCB service. Defaults to the basename of pluginPath; must be specified when pluginPath is null.";
                 }
                 // lib.optionalAttrs (config.pluginPath != null) {
                   default = builtins.baseNameOf config.pluginPath;
@@ -316,13 +337,13 @@ in
               settingsFile = lib.mkOption {
                 type = lib.types.nullOr lib.types.path;
                 default = null;
-                description = "Existing INI file to link as /var/lib/edcb/<name>.ini. Takes precedence over settings.";
+                description = "Existing INI file to bind mount read-only as /var/lib/edcb/<name>.ini inside the EDCB service. Takes precedence over settings.";
               };
 
               settings = lib.mkOption {
                 type = lib.types.nullOr (pkgs.formats.ini { }).type;
                 default = null;
-                description = "INI settings linked as /var/lib/edcb/<name>.ini. Used when settingsFile is null; null leaves the INI unmanaged if settingsFile is also null.";
+                description = "INI settings bind mounted read-only as /var/lib/edcb/<name>.ini inside the EDCB service. Used when settingsFile is null; null leaves the INI unmanaged if settingsFile is also null.";
               };
             };
           }
@@ -368,19 +389,19 @@ in
                 type = lib.types.str;
                 default = builtins.baseNameOf config.driverPath;
                 defaultText = lib.literalExpression "builtins.baseNameOf driverPath";
-                description = "Filename used for the BonDriver library symlink. The adjacent INI symlink uses <name>.ini. Defaults to the basename of driverPath.";
+                description = "Filename used for the BonDriver library symlink. The adjacent read-only INI bind mount uses <name>.ini inside the EDCB service. Defaults to the basename of driverPath.";
               };
 
               settingsFile = lib.mkOption {
                 type = lib.types.nullOr lib.types.path;
                 default = null;
-                description = "Existing INI file to link beside the selected driver as <name>.ini. Takes precedence over settings.";
+                description = "Existing INI file to bind mount read-only beside the selected driver as <name>.ini inside the EDCB service. Takes precedence over settings.";
               };
 
               settings = lib.mkOption {
                 type = lib.types.nullOr (pkgs.formats.ini { }).type;
                 default = null;
-                description = "INI settings written beside the selected driver as <name>.ini. Used when settingsFile is null; null leaves the INI unmanaged if settingsFile is also null. No driver-specific values are added.";
+                description = "INI settings bind mounted read-only beside the selected driver as <name>.ini inside the EDCB service. Used when settingsFile is null; null leaves the INI unmanaged if settingsFile is also null. No driver-specific values are added.";
               };
 
               tunerSettings = lib.mkOption {
@@ -512,10 +533,9 @@ in
       ]
       ++ bonDriverLibraryLinks
       ++ pluginLibraryLinks
-      ++ map (file: "L+ ${file.path} - - - - ${file.source}") linkedIniFiles
       ++ map (name: "L+ ${runtimeLibDir}/${name} - - - - ${cfg.package}/lib/edcb/${name}") edcbLibraries;
 
-    # When both INI sources are null, remove only its store link.
+    # Remove legacy store links before binding INIs or leaving them unmanaged.
     # Mutable files are deliberately preserved.
     system.activationScripts.edcb-unmanage-files.text = ''
       removeEdcbStoreLink() {
@@ -541,9 +561,9 @@ in
           *) removeEdcbStoreLink "$filePath" ;;
         esac
       done
-      ${lib.concatMapStringsSep "\n" (
-        file: "removeEdcbStoreLink ${lib.escapeShellArg file.path}"
-      ) unmanagedIniFiles}
+      ${lib.concatMapStringsSep "\n" (file: "removeEdcbStoreLink ${lib.escapeShellArg file.path}") (
+        unmanagedIniFiles ++ immutableIniFiles
+      )}
       ${lib.optionalString (!cfg.materialWebUI.enable) ''
         removeMaterialWebUILink() {
           filePath="$1"
@@ -622,6 +642,7 @@ in
         ProtectSystem = "strict";
         ProtectClock = true;
         ReadWritePaths = [ "/var/lib/edcb" ] ++ cfg.recordingDir;
+        BindReadOnlyPaths = map (file: "${file.source}:${file.path}") immutableIniFiles;
       };
     };
   };
