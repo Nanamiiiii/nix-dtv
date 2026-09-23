@@ -27,7 +27,23 @@ let
     if cfg.settings == null then
       null
     else
-      lib.recursiveUpdate (lib.recursiveUpdate tunerSettings cfg.settings) portSettings;
+      (lib.foldl' lib.recursiveUpdate { } [
+        defaultSettings
+        tunerSettings
+        portSettings
+        cfg.settings
+      ]);
+
+  defaultSettings = {
+    SET = {
+      EnableHttpSrv = 1;
+      HttpAccessControlList = "+127.0.0.0/8,+10.0.0.0/8,+172.16.0.0/12,+192.168.0.0/16,+169.254.0.0/16,+100.64.0.0/10";
+      EnableTCPSrv = 1;
+      TCPAccessControlList = "+127.0.0.0/8,+10.0.0.0/8,+172.16.0.0/12,+192.168.0.0/16,+169.254.0.0/16,+100.64.0.0/10";
+      CompatFlags = 128;
+      TimeSync = 0;
+    };
+  };
 
   portSettings = {
     SET = {
@@ -98,6 +114,20 @@ let
     plugin: "L+ ${runtimeLibDir}/${plugin.name} - - - - ${plugin.pluginPath}"
   ) binaryPlugins;
 
+  epgDataCapBonSettings =
+    if cfg.epgDataCapBonSettings == null then
+      null
+    else
+      lib.recursiveUpdate defaultEpgDataCapBonSettings cfg.epgDataCapBonSettings;
+
+  defaultEpgDataCapBonSettings = {
+    SET_TCP = {
+      Count = 1;
+      IP0 = 1;
+      Port0 = 0;
+    };
+  };
+
   iniFiles = [
     {
       name = "EpgTimerSrv.ini";
@@ -117,7 +147,7 @@ let
       name = "EpgDataCap_Bon.ini";
       path = "/var/lib/edcb/EpgDataCap_Bon.ini";
       immutable = cfg.epgDataCapBonSettingsImmutable;
-      settings = cfg.epgDataCapBonSettings;
+      settings = epgDataCapBonSettings;
       settingsFile = cfg.epgDataCapBonSettingsFile;
     }
   ]
@@ -246,16 +276,7 @@ in
 
     settings = lib.mkOption {
       type = lib.types.nullOr ini.type;
-      default = {
-        SET = {
-          EnableHttpSrv = 1;
-          HttpAccessControlList = "+127.0.0.0/8,+10.0.0.0/8,+172.16.0.0/12,+192.168.0.0/16,+169.254.0.0/16,+100.64.0.0/10";
-          EnableTCPSrv = 1;
-          TCPAccessControlList = "+127.0.0.0/8,+10.0.0.0/8,+172.16.0.0/12,+192.168.0.0/16,+169.254.0.0/16,+100.64.0.0/10";
-          CompatFlags = 128;
-          TimeSync = 0;
-        };
-      };
+      default = { };
       example = {
         EPG_CAP = {
           Count = 1;
@@ -264,7 +285,7 @@ in
           "0BasicOnlyFlags" = 14;
         };
       };
-      description = "Managed EpgTimerSrv.ini settings, used when settingsFile is null. Null leaves the file unmanaged only if settingsFile is also null. The option default provides integration settings; an explicit value replaces it. A non-null value receives TVTEST entries and each BonDriver's tunerSettings. For generated settings, TCPPort and HttpPort are always derived from the dedicated port options.";
+      description = "Managed EpgTimerSrv.ini settings, used when settingsFile is null. Null leaves the file unmanaged only if settingsFile is also null. The option default provides integration settings; an explicit value replaces it. A non-null value receives TVTEST entries and each BonDriver's tunerSettings.";
     };
 
     commonSettingsFile = lib.mkOption {

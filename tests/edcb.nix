@@ -326,7 +326,7 @@ pkgs.testers.runNixOSTest {
     machine.succeed("grep -F 'RecFolderPath0=/mnt/tv/recordings' /var/lib/edcb/Common.ini")
     machine.succeed("grep -F 'RecFolderPath1=/srv/tv/archive' /var/lib/edcb/Common.ini")
     machine.succeed("grep -F 'EnableTCPSrv=1' /var/lib/edcb/EpgTimerSrv.ini")
-    machine.succeed("grep -Fx 'TCPPort=4512' /var/lib/edcb/EpgTimerSrv.ini")
+    machine.succeed("grep -Fx 'TCPPort=9999' /var/lib/edcb/EpgTimerSrv.ini")
     machine.succeed("grep -F 'TCPAccessControlList=+127.0.0.0/8,+10.0.0.0/8,+172.16.0.0/12,+192.168.0.0/16,+169.254.0.0/16,+100.64.0.0/10' /var/lib/edcb/EpgTimerSrv.ini")
     machine.succeed("grep -F 'CompatFlags=128' /var/lib/edcb/EpgTimerSrv.ini")
     machine.succeed("grep -F 'TimeSync=0' /var/lib/edcb/EpgTimerSrv.ini")
@@ -339,7 +339,7 @@ pkgs.testers.runNixOSTest {
     assert "BonDriver_FileOnly.so" not in ini
     assert "BonDriver_Unselected.so" not in ini
     machine.succeed("grep -F 'EnableHttpSrv=1' /var/lib/edcb/EpgTimerSrv.ini")
-    machine.succeed("grep -Fx 'HttpPort=5510,5520,5511s,5521s' /var/lib/edcb/EpgTimerSrv.ini")
+    machine.succeed("grep -Fx 'HttpPort=9998,9999s' /var/lib/edcb/EpgTimerSrv.ini")
     machine.fail("grep -F '[EPG_CAP]' /var/lib/edcb/EpgTimerSrv.ini")
     service_fail("grep -F 'SERVER_HOST=' /var/lib/edcb/lib/BonDriver_LinuxMirakc.so.ini")
     service_fail("grep -F 'SERVER_PORT=' /var/lib/edcb/lib/BonDriver_LinuxMirakc.so.ini")
@@ -438,8 +438,8 @@ pkgs.testers.runNixOSTest {
             machine.succeed(f"grep -Fx 'MixedCase=保持' {path}")
             machine.fail(f"grep -F immutable {path}")
             machine.succeed(f"test $(stat -c %U {path}) = edcb")
-        machine.succeed("grep -Fx 'TCPPort=4512' /var/lib/edcb/EpgTimerSrv.ini")
-        machine.succeed("grep -Fx 'HttpPort=5510,5520,5511s,5521s' /var/lib/edcb/EpgTimerSrv.ini")
+        machine.succeed("grep -Fx 'TCPPort=9999' /var/lib/edcb/EpgTimerSrv.ini")
+        machine.succeed("grep -Fx 'HttpPort=9998,9999s' /var/lib/edcb/EpgTimerSrv.ini")
     # Transition from the old store-link layout must preserve existing values.
     machine.succeed("systemctl stop edcb")
     machine.succeed("ln -sf ${pkgs.writeText "previous-common.ini" "[SET]\nPrevious=retained\n"} /var/lib/edcb/Common.ini")

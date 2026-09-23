@@ -289,6 +289,21 @@ let
   withoutWebUIWithDefaultSettings = webUIWithDefaultSettings.extendModules {
     modules = [ { services.edcb.materialWebUI.enable = nixpkgs.lib.mkForce false; } ];
   };
+  immutableDefaultSettings = webUIWithDefaultSettings.extendModules {
+    modules = [ { services.edcb.settingsImmutable = true; } ];
+  };
+  overriddenDefaults = evaluated.extendModules {
+    modules = [
+      {
+        services.edcb.settings.SET = {
+          EnableHttpSrv = 0;
+          TCPPort = 9999;
+          HttpPort = "9998,9999s";
+        };
+        services.edcb.epgDataCapBonSettings.SET_TCP.Port0 = 1234;
+      }
+    ];
+  };
   webUIWithUnmanagedSettings = nixpkgs.lib.nixosSystem {
     inherit system;
     modules = [
@@ -447,13 +462,14 @@ let
     }).config;
   iniMounts = config: config.systemd.services.edcb.serviceConfig.BindReadOnlyPaths or [ ];
   hasIniMount = config: path: nixpkgs.lib.any (nixpkgs.lib.hasSuffix ":${path}") (iniMounts config);
-  srvIni =
-    config:
-    nixpkgs.lib.removeSuffix ":/var/lib/edcb/EpgTimerSrv.ini" (
-      nixpkgs.lib.findFirst (nixpkgs.lib.hasSuffix ":/var/lib/edcb/EpgTimerSrv.ini")
-        (throw "missing EpgTimerSrv.ini bind mount")
+  coreIni =
+    name: config:
+    nixpkgs.lib.removeSuffix ":/var/lib/edcb/${name}" (
+      nixpkgs.lib.findFirst (nixpkgs.lib.hasSuffix ":/var/lib/edcb/${name}")
+        (throw "missing ${name} bind mount")
         (iniMounts config)
     );
+  srvIni = coreIni "EpgTimerSrv.ini";
   konomitvVolumes = cfg.virtualisation.oci-containers.containers.konomitv.volumes;
   konomitvDevices = config: config.virtualisation.oci-containers.containers.konomitv.devices;
   konomitvOptions = config: config.virtualisation.oci-containers.containers.konomitv.extraOptions;
@@ -597,7 +613,7 @@ assert
   ];
 assert withoutWebUIWithDefaultSettings.config.services.edcb.httpPorts == [ 5510 ];
 assert withoutWebUIWithDefaultSettings.config.services.edcb.httpsPorts == [ ];
-assert webUIWithDefaultSettings.config.services.edcb.settings.SET.EnableHttpSrv == 1;
+assert webUIWithDefaultSettings.config.services.edcb.settings == { };
 assert webUIWithUnmanagedSettings.config.services.edcb.settings == null;
 assert
   !(nixpkgs.lib.any (nixpkgs.lib.hasInfix "/var/lib/edcb/EpgTimerSrv.ini ") webUIWithUnmanagedSettings.config.systemd.tmpfiles.rules);
@@ -800,6 +816,29 @@ pkgs.runCommand "nix-dtv-module-eval"
     assert dict(ini["BonDriver_Custom.so"]) == {"Count": "2"}
     assert "BonDriver_Unselected.so" not in ini
     assert ini["SET"]["SaveLog"] == "1"
+
+    defaults = read("${srvIni immutableDefaultSettings.config}")
+    for settings in [defaults, ini]:
+        assert settings["SET"]["EnableHttpSrv"] == "1"
+        assert settings["SET"]["EnableTCPSrv"] == "1"
+        assert settings["SET"]["CompatFlags"] == "128"
+        assert settings["SET"]["TimeSync"] == "0"
+        for key in ["HttpAccessControlList", "TCPAccessControlList"]:
+            assert settings["SET"][key] == "+127.0.0.0/8,+10.0.0.0/8,+172.16.0.0/12,+192.168.0.0/16,+169.254.0.0/16,+100.64.0.0/10"
+    assert defaults["SET"]["TCPPort"] == "4510"
+    assert defaults["SET"]["HttpPort"] == "5510,5520,5511s,5521s"
+
+    capture = read("${coreIni "EpgDataCap_Bon.ini" cfg}")
+    assert dict(capture["SET_TCP"]) == {"Count": "1", "IP0": "1", "Port0": "0"}
+    assert capture["SET"]["TsBuffMaxCount"] == "5000"
+
+    custom = read("${srvIni overriddenDefaults.config}")
+    assert custom["SET"]["EnableHttpSrv"] == "0"
+    assert custom["SET"]["EnableTCPSrv"] == "1"
+    assert custom["SET"]["TCPPort"] == "9999"
+    assert custom["SET"]["HttpPort"] == "9998,9999s"
+    custom_capture = read("${coreIni "EpgDataCap_Bon.ini" overriddenDefaults.config}")
+    assert dict(custom_capture["SET_TCP"]) == {"Count": "1", "IP0": "1", "Port0": "1234"}
 
     empty = read("${srvIni emptyDrivers.config}")
     assert dict(empty["TVTEST"]) == {"Num": "0"}

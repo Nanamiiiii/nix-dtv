@@ -1129,7 +1129,7 @@ string
 
 
 
-Managed EpgTimerSrv\.ini settings, used when settingsFile is null\. Null leaves the file unmanaged only if settingsFile is also null\. The option default provides integration settings; an explicit value replaces it\. A non-null value receives TVTEST entries and each BonDriver’s tunerSettings\. For generated settings, TCPPort and HttpPort are always derived from the dedicated port options\.
+Managed EpgTimerSrv\.ini settings, used when settingsFile is null\. Null leaves the file unmanaged only if settingsFile is also null\. The option default provides integration settings; an explicit value replaces it\. A non-null value receives TVTEST entries and each BonDriver’s tunerSettings\.
 
 
 
@@ -1141,16 +1141,7 @@ null or (attribute set of section of an INI file (attrs of INI atom (null, bool,
 *Default:*
 
 ```nix
-{
-  SET = {
-    CompatFlags = 128;
-    EnableHttpSrv = 1;
-    EnableTCPSrv = 1;
-    HttpAccessControlList = "+127.0.0.0/8,+10.0.0.0/8,+172.16.0.0/12,+192.168.0.0/16,+169.254.0.0/16,+100.64.0.0/10";
-    TCPAccessControlList = "+127.0.0.0/8,+10.0.0.0/8,+172.16.0.0/12,+192.168.0.0/16,+169.254.0.0/16,+100.64.0.0/10";
-    TimeSync = 0;
-  };
-}
+{ }
 ```
 
 
