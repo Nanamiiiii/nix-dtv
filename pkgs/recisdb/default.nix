@@ -10,17 +10,17 @@
 
 rustPlatform.buildRustPackage {
   pname = "recisdb";
-  version = "1.2.4-unstable-2026-09-19";
+  version = "1.3.0-unstable-2026-09-27";
 
   src = fetchFromGitHub {
     owner = "kazuki0824";
     repo = "recisdb-rs";
-    rev = "b742fa171d37331f7d9a87eb3c40e1b7ddf9a36f";
+    rev = "d30c6b5e4724508840504747df89b4d4defaa944";
     fetchSubmodules = true;
-    hash = "sha256-0/SbEESQ2vc//pP/Vo5UL5Zg6sVfD4CDXnL+ZirqftY=";
+    hash = "sha256-Os3pf0WdkO9dk/ccoTLwV95ooVonIzfhe2MFekVvUwE=";
   };
 
-  cargoHash = "sha256-c4yL5V1G9mU0vg9m9v9s6qji8jsIpHWtugO6tOPJm9Q=";
+  cargoHash = "sha256-8UAs1N44+3dVSdgHGGVl32+KMMVrur1j06yMpxxQz2s=";
 
   nativeBuildInputs = [
     cmake
