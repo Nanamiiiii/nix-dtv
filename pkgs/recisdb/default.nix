@@ -10,7 +10,7 @@
 
 rustPlatform.buildRustPackage {
   pname = "recisdb";
-  version = "1.3.0-unstable-2026-09-27";
+  version = "1.3.1-unstable-2026-09-27";
 
   src = fetchFromGitHub {
     owner = "kazuki0824";
