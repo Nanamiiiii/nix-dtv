@@ -7,13 +7,13 @@
 
 stdenvNoCC.mkDerivation {
   pname = "edcb-material-webui";
-  version = "3-unstable-2026-09-26";
+  version = "3-unstable-2026-10-02";
 
   src = fetchFromGitHub {
     owner = "EMWUI";
     repo = "EDCB_Material_WebUI";
-    rev = "36cf876abd4f5fa6f96196371c16e804f5da92ee";
-    hash = "sha256-2tgoA2Qigik2B9Rxf45w/wrdZZZdEe1SHiMfyvWU4SE=";
+    rev = "4e5b5c865a481cc8f443d6d468ee9571a8bfcf20";
+    hash = "sha256-57Ba52puM7ngAJc3cPMsDQ29tBs1hh3yG1ov1dQJBlU=";
   };
 
   nativeBuildInputs = [ glibc.bin ];
