@@ -29,7 +29,7 @@ stdenv.mkDerivation rec {
 
     make ${lib.escapeShellArgs kernelModuleMakeFlags} \
       -C ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build \
-      "M=$PWD/driver" px4_drv.ko
+      "M=$PWD/driver" modules
 
     runHook postBuild
   '';
@@ -37,8 +37,10 @@ stdenv.mkDerivation rec {
   installPhase = ''
     runHook preInstall
 
-    install -Dm444 driver/px4_drv.ko \
-      "$out/lib/modules/${kernel.modDirVersion}/misc/px4_drv.ko"
+    make ${lib.escapeShellArgs kernelModuleMakeFlags} \
+      -C ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build \
+      "M=$PWD/driver" "INSTALL_MOD_PATH=$out" INSTALL_MOD_DIR=misc \
+      DEPMOD=true modules_install
     install -Dm444 etc/it930x-firmware.bin \
       "$out/lib/firmware/it930x-firmware.bin"
     install -Dm444 etc/99-px4video.rules \
