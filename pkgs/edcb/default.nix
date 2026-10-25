@@ -10,13 +10,13 @@
 
 stdenv.mkDerivation rec {
   pname = "edcb";
-  version = "work-plus-s-260904";
+  version = "work-plus-s-261018";
 
   src = fetchFromGitHub {
     owner = "xtne6f";
     repo = "EDCB";
     rev = version;
-    hash = "sha256-XoPyWJA+LknTJpdQSdhICyHV/P1p+E2NhAfHLr/ghhs=";
+    hash = "sha256-U60tOnBxNY/pF7jq6hQzHYVZ7ozAaxoG+kicl5mzbNw=";
   };
 
   buildInputs = [
