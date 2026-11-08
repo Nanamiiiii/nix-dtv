@@ -8,13 +8,13 @@
 
 stdenv.mkDerivation rec {
   pname = "px4_drv";
-  version = "0.6.1";
+  version = "0.7.1";
 
   src = fetchFromGitHub {
     owner = "tsukumijima";
     repo = "px4_drv";
     rev = "v${version}";
-    hash = "sha256-YdB2kiVhYLi8TxZVL9eCksYtvri82Ybdlbe6uthkU/c=";
+    hash = "sha256-MP0ubv/J61X9OB9mdU7VVmq8OShpDKB1CBY7C2mR2hk=";
   };
 
   hardeningDisable = [ "pic" ];
