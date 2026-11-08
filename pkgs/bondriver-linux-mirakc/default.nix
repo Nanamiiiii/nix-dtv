@@ -6,13 +6,13 @@
 
 stdenv.mkDerivation {
   pname = "bondriver-linux-mirakc";
-  version = "0-unstable-2024-10-14";
+  version = "0-unstable-2026-11-07";
 
   src = fetchFromGitHub {
     owner = "matching";
     repo = "BonDriver_LinuxMirakc";
-    rev = "cfbefc6d21dab4009db5f124984c1b720b76d869";
-    hash = "sha256-JQyPdkraJpaJ4o87DRImbLe4moflcxJ1tQmNY+kyGsw=";
+    rev = "bc1d70c7415ea5b49b8384151045b0c826fded5c";
+    hash = "sha256-nbqlFteVdLB90Bh5hmgPMvT2AFRx0YDlRYJFrxCDhIA=";
   };
 
   picojson = fetchFromGitHub {
